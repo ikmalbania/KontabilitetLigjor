@@ -26,10 +26,12 @@
 
   window.addEventListener('DOMContentLoaded', function () {
     const email = readCookie('ikm_email');
+    const role = readCookie('ikm_role');
     document.body.classList.add('authenticated');
     const emailEl = document.getElementById('user-email');
     if (emailEl) emailEl.textContent = email || '';
     paintWatermark(email);
+    maybeShowAdminLink(role);
 
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
@@ -52,6 +54,26 @@
       });
     }
   });
+
+  function maybeShowAdminLink(role) {
+    // Lets an admin get back to /admin/ from a student-facing page (the
+    // course pages have no reason to know about the admin panel in their
+    // own markup, so this is added here instead of in every template).
+    // Not shown when already somewhere under /admin/ (the dashboard link
+    // "Shiko kursin si student" covers going the other way), and this
+    // cookie is purely cosmetic — it grants nothing on its own.
+    if (role !== 'admin') return;
+    if (window.location.pathname.indexOf('/admin') === 0) return;
+    const userInfo = document.querySelector('.user-info');
+    if (!userInfo) return;
+    const link = document.createElement('a');
+    link.href = '/admin/';
+    link.className = 'btn-ghost';
+    link.textContent = 'Paneli i Administratorit';
+    link.style.textDecoration = 'none';
+    link.style.display = 'inline-block';
+    userInfo.insertBefore(link, userInfo.firstChild);
+  }
 
   function openChangePasswordDialog() {
     const overlay = document.createElement('div');
