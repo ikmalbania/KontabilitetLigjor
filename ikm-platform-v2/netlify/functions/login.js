@@ -40,7 +40,7 @@ exports.handler = async (event) => {
     return json(401, { error: genericError });
   }
 
-  const token = createSessionToken(email);
+  const token = createSessionToken(email, record.role);
   return {
     statusCode: 200,
     multiValueHeaders: {

@@ -61,9 +61,9 @@ function verify(token) {
   return payload;
 }
 
-function createSessionToken(email) {
+function createSessionToken(email, role) {
   const exp = Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000;
-  return sign({ email: email.toLowerCase(), role: 'student', exp });
+  return sign({ email: email.toLowerCase(), role: role || 'student', exp });
 }
 
 // Cookie helpers ------------------------------------------------------

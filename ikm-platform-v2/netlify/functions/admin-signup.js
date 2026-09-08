@@ -4,10 +4,14 @@ const { createSessionToken, sessionCookieHeader, displayCookieHeader } = require
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Creates an admin account, gated by ADMIN_CODE (a separate environment
+// variable from the student INVITE_CODE - set it in Netlify: Site
+// configuration -> Environment variables -> ADMIN_CODE). Meant to be used
+// once per admin, from a dedicated admin-signup page that is not linked
+// from the student-facing signup flow. Ordinary login afterwards goes
+// through the same /api/login as students - role lives on the account,
+// not on a separate login path.
 exports.handler = async (event) => {
-  // Required for Netlify Blobs to pick up the site context when a
-  // function is written in this classic (Lambda-compatible) handler
-  // style, rather than the newer web-standard Request/Response style.
   connectLambda(event);
 
   if (event.httpMethod !== 'POST') {
@@ -32,16 +36,12 @@ exports.handler = async (event) => {
     return json(400, { error: 'Fjalëkalimi duhet të ketë të paktën 8 karaktere.' });
   }
 
-  // The invite code is a single shared value set as a Netlify environment
-  // variable (INVITE_CODE) — simple to rotate, no separate admin UI or
-  // database of codes needed for a small cohort. Compared case-
-  // insensitively so a code shared verbally/typed doesn't trip on case.
-  const expectedCode = process.env.INVITE_CODE;
+  const expectedCode = process.env.ADMIN_CODE;
   if (!expectedCode) {
-    return json(500, { error: 'INVITE_CODE nuk është konfiguruar në server.' });
+    return json(500, { error: 'ADMIN_CODE nuk është konfiguruar në server.' });
   }
   if (code.toLowerCase() !== expectedCode.toLowerCase()) {
-    return json(403, { error: 'Kodi i ftesës është i pasaktë.' });
+    return json(403, { error: 'Kodi i administratorit është i pasaktë.' });
   }
 
   let store;
@@ -51,7 +51,7 @@ exports.handler = async (event) => {
     return json(500, { error: 'Gabim ruajtjeje (Blobs). ' + e.message });
   }
 
-  const existing = await store.get(email);
+  const existing = await store.get(email, { type: 'json' });
   if (existing) {
     return json(409, { error: 'Ky email është regjistruar tashmë. Provo të kyçesh.' });
   }
@@ -59,12 +59,12 @@ exports.handler = async (event) => {
   const record = {
     email,
     passwordHash: hashPassword(password),
-    role: 'student',
+    role: 'admin',
     createdAt: new Date().toISOString(),
   };
   await store.setJSON(email, record);
 
-  const token = createSessionToken(email, 'student');
+  const token = createSessionToken(email, 'admin');
   return {
     statusCode: 200,
     multiValueHeaders: {
