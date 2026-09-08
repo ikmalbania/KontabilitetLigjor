@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Përdoruesit — Admin — Kontabilist Ligjor</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="watermark"></div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="/admin/" class="brand">IKM <span>Admin</span></a>
+    <div class="user-info">
+      <span id="user-email"></span>
+      <button id="logout-btn" class="btn-ghost">Dil</button>
+    </div>
+  </div>
+</header>
+<div class="admin-shell" id="protected-content">
+  <div class="admin-header">
+    <h1>Përdoruesit</h1>
+    <div class="admin-nav-links">
+      <a href="/admin/">← Paneli i Administratorit</a>
+    </div>
+  </div>
+
+  <div class="admin-toolbar" style="align-items:flex-start;flex-direction:column">
+    <button class="btn-ghost" id="show-create-btn" style="color:var(--navy);border-color:var(--line)">+ Krijo përdorues</button>
+  </div>
+
+  <div id="create-box" style="display:none;margin:14px 0;max-width:640px">
+    <p style="font-size:13px;color:#5A6B7D">
+      Ngjit një email për rresht (deri 200 njëherësh). Fjalëkalimet gjenerohen
+      automatikisht dhe shfaqen pasi të krijohen — kopjoji dhe shpërndaji
+      studentëve, s'i ruajmë ne diku tjetër pas kësaj.
+    </p>
+    <textarea id="create-emails" rows="6" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;font-family:monospace;font-size:13px"
+      placeholder="student1@example.com&#10;student2@example.com&#10;student3@example.com"></textarea>
+    <div style="margin-top:8px;display:flex;gap:10px;align-items:center">
+      <label style="font-size:13px">Roli:
+        <select id="create-role" style="padding:5px 8px;border:1px solid var(--line);border-radius:4px">
+          <option value="student">Student</option>
+          <option value="admin">Administrator</option>
+        </select>
+      </label>
+      <button class="btn-primary" id="create-submit-btn" style="width:auto;padding:8px 18px">Krijo</button>
+      <button class="btn-ghost" id="create-cancel-btn" style="color:var(--navy);border-color:var(--line)">Anulo</button>
+    </div>
+    <div id="create-status" style="font-size:13px;margin-top:8px"></div>
+    <div id="create-results" style="display:none;margin-top:12px">
+      <table class="admin-table">
+        <thead><tr><th>Email</th><th>Statusi</th><th>Fjalëkalimi</th></tr></thead>
+        <tbody id="create-results-tbody"></tbody>
+      </table>
+      <button class="btn-ghost" id="copy-results-btn" style="color:var(--navy);border-color:var(--line);margin-top:8px">Kopjo listën</button>
+    </div>
+  </div>
+
+  <div id="loading">Duke ngarkuar…</div>
+  <table class="admin-table" id="users-table" style="display:none">
+    <thead><tr><th>Email</th><th>Roli</th><th>U regjistrua</th><th></th></tr></thead>
+    <tbody id="users-tbody"></tbody>
+  </table>
+</div>
+<script src="/js/auth-gate.js"></script>
+<script>
+function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+async function getJSON(url) {
+  var res = await fetch(url, { credentials: 'same-origin' });
+  var body = {};
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(body.error || ('Gabim (' + res.status + ')'));
+  return body;
+}
+async function postJSON(url, data) {
+  var res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(data),
+  });
+  var body = {};
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(body.error || ('Gabim (' + res.status + ')'));
+  return body;
+}
+function fmtDate(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleDateString('sq-AL'); } catch (e) { return iso; }
+}
+
+async function load() {
+  var data = await getJSON('/api/admin-list-users');
+  var tbody = document.getElementById('users-tbody');
+  tbody.innerHTML = '';
+  data.users.forEach(function (u) {
+    var tr = document.createElement('tr');
+
+    var roleCell = '<td>' + (u.role === 'admin'
+      ? '<strong style="color:var(--navy)">Administrator</strong>'
+      : 'Student') + '</td>';
+
+    tr.innerHTML =
+      '<td>' + esc(u.email) + '</td>' +
+      roleCell +
+      '<td>' + fmtDate(u.createdAt) + '</td>' +
+      '<td></td>';
+
+    var actionsTd = tr.querySelector('td:last-child');
+
+    var toggleBtn = document.createElement('a');
+    toggleBtn.className = 'admin-action';
+    toggleBtn.href = '#';
+    toggleBtn.textContent = u.role === 'admin' ? 'Bëje student' : 'Bëje admin';
+    toggleBtn.addEventListener('click', async function (e) {
+      e.preventDefault();
+      var newRole = u.role === 'admin' ? 'student' : 'admin';
+      if (!confirm('Ndrysho rolin e ' + u.email + ' në "' + newRole + '"?')) return;
+      try {
+        await postJSON('/api/admin-set-role', { email: u.email, role: newRole });
+        await load();
+      } catch (err) { alert('Gabim: ' + err.message); }
+    });
+
+    var resetBtn = document.createElement('a');
+    resetBtn.className = 'admin-action';
+    resetBtn.href = '#';
+    resetBtn.textContent = 'Rivendos fjalëkalimin';
+    resetBtn.addEventListener('click', async function (e) {
+      e.preventDefault();
+      var newPw = prompt('Fjalëkalimi i ri për ' + u.email + ' (min. 8 karaktere):');
+      if (!newPw) return;
+      try {
+        await postJSON('/api/admin-reset-password', { email: u.email, newPassword: newPw });
+        alert('Fjalëkalimi u ndryshua.');
+      } catch (err) { alert('Gabim: ' + err.message); }
+    });
+
+    var delBtn = document.createElement('a');
+    delBtn.className = 'admin-action';
+    delBtn.style.color = '#8B1E1E';
+    delBtn.href = '#';
+    delBtn.textContent = 'Fshi';
+    delBtn.addEventListener('click', async function (e) {
+      e.preventDefault();
+      if (!confirm('Fshi llogarinë e ' + u.email + '? Nuk mund të kthehet mbrapa.')) return;
+      try {
+        await postJSON('/api/admin-delete-user', { email: u.email });
+        await load();
+      } catch (err) { alert('Gabim: ' + err.message); }
+    });
+
+    actionsTd.appendChild(toggleBtn);
+    actionsTd.appendChild(document.createTextNode(' '));
+    actionsTd.appendChild(resetBtn);
+    actionsTd.appendChild(document.createTextNode(' '));
+    actionsTd.appendChild(delBtn);
+
+    tbody.appendChild(tr);
+  });
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('users-table').style.display = 'table';
+}
+
+load().catch(function (err) {
+  document.getElementById('loading').textContent = 'Gabim: ' + err.message;
+});
+
+document.getElementById('show-create-btn').addEventListener('click', function () {
+  document.getElementById('create-box').style.display = 'block';
+});
+document.getElementById('create-cancel-btn').addEventListener('click', function () {
+  document.getElementById('create-box').style.display = 'none';
+  document.getElementById('create-status').textContent = '';
+  document.getElementById('create-results').style.display = 'none';
+});
+
+var lastResultsText = '';
+
+document.getElementById('create-submit-btn').addEventListener('click', async function () {
+  var btn = this;
+  var status = document.getElementById('create-status');
+  var raw = document.getElementById('create-emails').value;
+  var emails = raw.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+  if (!emails.length) { status.textContent = 'Shto të paktën një email.'; return; }
+  var role = document.getElementById('create-role').value;
+  btn.disabled = true;
+  status.textContent = 'Duke krijuar ' + emails.length + ' llogari…';
+  try {
+    var data = await postJSON('/api/admin-create-users', {
+      role: role,
+      users: emails.map(function (e) { return { email: e }; }),
+    });
+    var tbody = document.getElementById('create-results-tbody');
+    tbody.innerHTML = '';
+    var lines = [];
+    data.results.forEach(function (r) {
+      var statusLabel = r.status === 'created' ? 'U krijua' : r.status === 'exists' ? 'Ekziston tashmë' : 'Email i pavlefshëm';
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + esc(r.email) + '</td><td>' + statusLabel + '</td><td>' + (r.password ? '<code>' + esc(r.password) + '</code>' : '—') + '</td>';
+      tbody.appendChild(tr);
+      if (r.status === 'created') lines.push(r.email + '\t' + r.password);
+    });
+    lastResultsText = lines.join('\n');
+    document.getElementById('create-results').style.display = 'block';
+    var createdCount = data.results.filter(function (r) { return r.status === 'created'; }).length;
+    status.textContent = '✓ U krijuan ' + createdCount + ' nga ' + data.results.length + '.';
+    await load();
+  } catch (err) {
+    status.textContent = 'Gabim: ' + err.message;
+  }
+  btn.disabled = false;
+});
+
+document.getElementById('copy-results-btn').addEventListener('click', async function () {
+  try {
+    await navigator.clipboard.writeText(lastResultsText);
+    this.textContent = 'U kopjua ✓';
+    var self = this;
+    setTimeout(function () { self.textContent = 'Kopjo listën'; }, 1500);
+  } catch (e) {
+    alert('S\'u kopjua automatikisht — përzgjidhe tekstin dhe kopjoje dorazi:\n\n' + lastResultsText);
+  }
+});
+</script>
+</body>
+</html>
