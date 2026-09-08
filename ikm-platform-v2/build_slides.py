@@ -90,13 +90,13 @@ VIEWER_TEMPLATE = '''<!DOCTYPE html>
   <a class="slides-back" href="/course/{course_slug}/modul-{modnum}/">← Kthehu te Moduli {modnum}</a>
   <h1 class="slides-title">{title}</h1>
   <div class="slides-viewer">
-    <button class="slides-nav slides-prev" id="prev-btn" aria-label="Rrëshqitja paraardhëse">‹</button>
-    <img class="slides-image" id="slide-img" src="slide-{first}.jpg" alt="Rrëshqitja 1">
-    <button class="slides-nav slides-next" id="next-btn" aria-label="Rrëshqitja pasardhëse">›</button>
+    <button class="slides-nav slides-prev" id="prev-btn" aria-label="Slide paraardhëse">‹</button>
+    <img class="slides-image" id="slide-img" src="slide-{first}.jpg" alt="Slide 1">
+    <button class="slides-nav slides-next" id="next-btn" aria-label="Slide pasardhëse">›</button>
   </div>
   <div class="slides-controls">
-    <span>Rrëshqitja</span>
-    <select id="slide-select" aria-label="Shko te rrëshqitja"></select>
+    <span>Slide</span>
+    <select id="slide-select" aria-label="Shko te slide"></select>
     <span>nga {count}</span>
   </div>
 </div>
@@ -121,7 +121,7 @@ VIEWER_TEMPLATE = '''<!DOCTYPE html>
     idx = Math.max(0, Math.min(files.length - 1, idx));
     i = idx;
     img.src = files[i];
-    img.alt = 'Rrëshqitja ' + (i + 1);
+    img.alt = 'Slide ' + (i + 1);
     select.value = i;
     prevBtn.disabled = i === 0;
     nextBtn.disabled = i === files.length - 1;

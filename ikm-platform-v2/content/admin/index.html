@@ -90,10 +90,10 @@ async function load() {
         '<td>' + esc(m.label) + '</td>' +
         '<td class="' + (m.hasContent ? 'admin-status-yes' : 'admin-status-no') + '">' +
           (m.hasContent ? (m.blockCount + ' blloqe') : 'Pa përmbajtje') + '</td>' +
-        '<td>' + m.slideCount + ' rrëshqitje</td>' +
+        '<td>' + m.slideCount + ' Slides</td>' +
         '<td>' +
           '<a class="admin-action" href="/admin/edit/?course=' + encodeURIComponent(course.slug) + '&modnum=' + encodeURIComponent(m.num) + '">Edito tekstin</a>' +
-          '<a class="admin-action" href="/admin/slides/?course=' + encodeURIComponent(course.slug) + '&modnum=' + encodeURIComponent(m.num) + '">Rrëshqitjet</a>' +
+          '<a class="admin-action" href="/admin/slides/?course=' + encodeURIComponent(course.slug) + '&modnum=' + encodeURIComponent(m.num) + '">Slides</a>' +
         '</td>' +
       '</tr>';
     }).join('');

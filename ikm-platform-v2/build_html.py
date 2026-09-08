@@ -187,7 +187,7 @@ for course_slug, course in COURSES.items():
                 f'<a class="slides-entry" href="/course/{course_slug}/modul-{modnum}/slides/">'
                 f'<span class="slides-entry-icon">📊</span>'
                 f'<span class="slides-entry-text"><strong>Shiko Prezantimin</strong>'
-                f'<span>{n_slides} rrëshqitje</span></span></a>'
+                f'<span>{n_slides} Slides</span></span></a>'
             )
 
         page = PAGE_TEMPLATE.format(

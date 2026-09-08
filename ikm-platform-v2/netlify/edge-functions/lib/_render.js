@@ -194,15 +194,15 @@ export function renderSlidesViewerPage({ courseSlug, modnum, moduleLabel, course
 <div class="slides-shell" id="protected-content">
   <a class="slides-back" href="/course/${esc(courseSlug)}/modul-${esc(modnum)}/">← Kthehu te Moduli ${esc(modnum)}</a>
   <h1 class="slides-title">${esc(moduleLabel)}</h1>
-  <div id="slides-loading">Duke ngarkuar rrëshqitjet…</div>
+  <div id="slides-loading">Duke ngarkuar slides…</div>
   <div class="slides-viewer" id="slides-viewer" style="display:none">
-    <button class="slides-nav slides-prev" id="prev-btn" aria-label="Rrëshqitja paraardhëse">‹</button>
+    <button class="slides-nav slides-prev" id="prev-btn" aria-label="Slide paraardhëse">‹</button>
     <img class="slides-image" id="slide-img" alt="">
-    <button class="slides-nav slides-next" id="next-btn" aria-label="Rrëshqitja pasardhëse">›</button>
+    <button class="slides-nav slides-next" id="next-btn" aria-label="Slide pasardhëse">›</button>
   </div>
   <div class="slides-controls" id="slides-controls" style="display:none">
-    <span>Rrëshqitja</span>
-    <select id="slide-select" aria-label="Shko te rrëshqitja"></select>
+    <span>Slide</span>
+    <select id="slide-select" aria-label="Shko te slide"></select>
     <span>nga <span id="slide-total"></span></span>
   </div>
 </div>
@@ -223,7 +223,7 @@ export function renderSlidesViewerPage({ courseSlug, modnum, moduleLabel, course
     i = idx;
     var img = document.getElementById('slide-img');
     img.src = imgUrl(files[i]);
-    img.alt = 'Rrëshqitja ' + (i + 1);
+    img.alt = 'Slide ' + (i + 1);
     document.getElementById('slide-select').value = i;
     document.getElementById('prev-btn').disabled = i === 0;
     document.getElementById('next-btn').disabled = i === files.length - 1;
@@ -262,7 +262,7 @@ export function renderSlidesViewerPage({ courseSlug, modnum, moduleLabel, course
       show(0);
     })
     .catch(function () {
-      document.getElementById('slides-loading').textContent = 'Gabim gjatë ngarkimit të rrëshqitjeve.';
+      document.getElementById('slides-loading').textContent = 'Gabim gjatë ngarkimit të slides.';
     });
 })();
 </script>
@@ -288,7 +288,7 @@ export function renderModulePage({ courseSlug, modnum, moduleContent, courseRegi
       `<a class="slides-entry" href="/course/${courseSlug}/modul-${modnum}/slides/">` +
       `<span class="slides-entry-icon">📊</span>` +
       `<span class="slides-entry-text"><strong>Shiko Prezantimin</strong>` +
-      `<span>${slideCount} rrëshqitje</span></span></a>`;
+      `<span>${slideCount} Slides</span></span></a>`;
   }
 
   return PAGE_TEMPLATE({
