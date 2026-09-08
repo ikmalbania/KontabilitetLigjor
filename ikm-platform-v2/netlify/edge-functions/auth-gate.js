@@ -11,7 +11,7 @@
 //      as a safety net during the transition.
 
 import { getStore } from '@netlify/blobs';
-import { renderModulePage, renderSlidesViewerPage } from './_render.js';
+import { renderModulePage, renderSlidesViewerPage } from './lib/_render.js';
 
 async function verifySession(token, secret) {
   if (!token || token.indexOf('.') === -1) return null;
