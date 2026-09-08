@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paneli i Administratorit — Kontabilist Ligjor</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="watermark"></div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="/admin/" class="brand">IKM <span>Admin</span></a>
+    <div class="user-info">
+      <span id="user-email"></span>
+      <button id="logout-btn" class="btn-ghost">Dil</button>
+    </div>
+  </div>
+</header>
+<div class="admin-shell" id="protected-content">
+  <div class="admin-header">
+    <h1>Paneli i Administratorit</h1>
+    <div class="admin-nav-links">
+      <a href="/admin/users/">Përdoruesit</a>
+      <a href="/course/">Shiko kursin si student</a>
+    </div>
+  </div>
+
+  <div class="admin-banner" id="seed-banner" style="display:none">
+    Nuk ka ende përmbajtje dinamike të ngarkuar. Për fillim, importo modulet
+    ekzistuese nga skedari statik i site-it (nuk fshin asgjë, vetëm shton
+    çfarë mungon).
+    <button class="btn-primary" id="seed-btn" style="width:auto;padding:6px 16px">Importo Modulet</button>
+  </div>
+
+  <div id="courses-container">Duke ngarkuar…</div>
+</div>
+<script src="/js/auth-gate.js"></script>
+<script>
+async function getJSON(url) {
+  var res = await fetch(url, { credentials: 'same-origin' });
+  if (!res.ok) {
+    var body = {};
+    try { body = await res.json(); } catch (e) {}
+    throw new Error(body.error || ('Gabim (' + res.status + ')'));
+  }
+  return res.json();
+}
+async function postJSON(url, data) {
+  var res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(data || {}),
+  });
+  var body = {};
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(body.error || ('Gabim (' + res.status + ')'));
+  return body;
+}
+
+function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+async function load() {
+  var data;
+  try {
+    data = await getJSON('/api/admin-list-modules');
+  } catch (err) {
+    document.getElementById('courses-container').textContent = 'Gabim: ' + err.message;
+    return;
+  }
+
+  var anyContent = data.courses.some(function (c) { return c.modules.some(function (m) { return m.hasContent; }); });
+  if (!anyContent) {
+    document.getElementById('seed-banner').style.display = 'block';
+  }
+
+  var container = document.getElementById('courses-container');
+  container.innerHTML = '';
+  data.courses.forEach(function (course) {
+    var block = document.createElement('div');
+    block.className = 'admin-course-block';
+    var rows = course.modules.map(function (m) {
+      return '<tr>' +
+        '<td>Moduli ' + esc(m.num) + '</td>' +
+        '<td>' + esc(m.label) + '</td>' +
+        '<td class="' + (m.hasContent ? 'admin-status-yes' : 'admin-status-no') + '">' +
+          (m.hasContent ? (m.blockCount + ' blloqe') : 'Pa përmbajtje') + '</td>' +
+        '<td>' + m.slideCount + ' rrëshqitje</td>' +
+        '<td>' +
+          '<a class="admin-action" href="/admin/edit/?course=' + encodeURIComponent(course.slug) + '&modnum=' + encodeURIComponent(m.num) + '">Edito tekstin</a>' +
+          '<a class="admin-action" href="/admin/slides/?course=' + encodeURIComponent(course.slug) + '&modnum=' + encodeURIComponent(m.num) + '">Rrëshqitjet</a>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+    block.innerHTML =
+      '<h2>' + esc(course.name) + '</h2>' +
+      '<table class="admin-table"><thead><tr><th>Moduli</th><th>Titulli</th><th>Përmbajtja</th><th>Prezantimi</th><th></th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table>';
+    container.appendChild(block);
+  });
+}
+
+document.getElementById('seed-btn').addEventListener('click', async function () {
+  var btn = this;
+  btn.disabled = true;
+  btn.textContent = 'Duke importuar…';
+  try {
+    await postJSON('/api/admin-seed-content', { force: false });
+    document.getElementById('seed-banner').style.display = 'none';
+    await load();
+  } catch (err) {
+    alert('Gabim: ' + err.message);
+    btn.disabled = false;
+    btn.textContent = 'Importo Modulet';
+  }
+});
+
+load();
+</script>
+</body>
+</html>

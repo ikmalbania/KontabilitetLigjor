@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prezantimi — Skemat e Ryshfetit dhe Korrupsionit — Kontabilist Ligjor</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="watermark"></div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="/course/" class="brand">IKM <span>Kontabilist Ligjor</span></a>
+    <div class="user-info">
+      <span id="user-email"></span>
+      <button id="change-password-btn" class="btn-ghost">Ndrysho fjalëkalimin</button>
+      <button id="logout-btn" class="btn-ghost">Dil</button>
+    </div>
+  </div>
+</header>
+<div class="slides-shell" id="protected-content">
+  <a class="slides-back" href="/course/kontabilist-ligjor/modul-7/">← Kthehu te Moduli 7</a>
+  <h1 class="slides-title">Skemat e Ryshfetit dhe Korrupsionit</h1>
+  <div class="slides-viewer">
+    <button class="slides-nav slides-prev" id="prev-btn" aria-label="Rrëshqitja paraardhëse">‹</button>
+    <img class="slides-image" id="slide-img" src="slide-01.jpg" alt="Rrëshqitja 1">
+    <button class="slides-nav slides-next" id="next-btn" aria-label="Rrëshqitja pasardhëse">›</button>
+  </div>
+  <div class="slides-controls">
+    <span>Rrëshqitja</span>
+    <select id="slide-select" aria-label="Shko te rrëshqitja"></select>
+    <span>nga 76</span>
+  </div>
+</div>
+<script src="/js/auth-gate.js"></script>
+<script>
+(function () {
+  var files = ["slide-01.jpg", "slide-02.jpg", "slide-03.jpg", "slide-04.jpg", "slide-05.jpg", "slide-06.jpg", "slide-07.jpg", "slide-08.jpg", "slide-09.jpg", "slide-10.jpg", "slide-11.jpg", "slide-12.jpg", "slide-13.jpg", "slide-14.jpg", "slide-15.jpg", "slide-16.jpg", "slide-17.jpg", "slide-18.jpg", "slide-19.jpg", "slide-20.jpg", "slide-21.jpg", "slide-22.jpg", "slide-23.jpg", "slide-24.jpg", "slide-25.jpg", "slide-26.jpg", "slide-27.jpg", "slide-28.jpg", "slide-29.jpg", "slide-30.jpg", "slide-31.jpg", "slide-32.jpg", "slide-33.jpg", "slide-34.jpg", "slide-35.jpg", "slide-36.jpg", "slide-37.jpg", "slide-38.jpg", "slide-39.jpg", "slide-40.jpg", "slide-41.jpg", "slide-42.jpg", "slide-43.jpg", "slide-44.jpg", "slide-45.jpg", "slide-46.jpg", "slide-47.jpg", "slide-48.jpg", "slide-49.jpg", "slide-50.jpg", "slide-51.jpg", "slide-52.jpg", "slide-53.jpg", "slide-54.jpg", "slide-55.jpg", "slide-56.jpg", "slide-57.jpg", "slide-58.jpg", "slide-59.jpg", "slide-60.jpg", "slide-61.jpg", "slide-62.jpg", "slide-63.jpg", "slide-64.jpg", "slide-65.jpg", "slide-66.jpg", "slide-67.jpg", "slide-68.jpg", "slide-69.jpg", "slide-70.jpg", "slide-71.jpg", "slide-72.jpg", "slide-73.jpg", "slide-74.jpg", "slide-75.jpg", "slide-76.jpg"];
+  var img = document.getElementById('slide-img');
+  var select = document.getElementById('slide-select');
+  var prevBtn = document.getElementById('prev-btn');
+  var nextBtn = document.getElementById('next-btn');
+  var i = 0;
+
+  files.forEach(function (f, idx) {
+    var opt = document.createElement('option');
+    opt.value = idx;
+    opt.textContent = (idx + 1);
+    select.appendChild(opt);
+  });
+
+  function show(idx) {
+    idx = Math.max(0, Math.min(files.length - 1, idx));
+    i = idx;
+    img.src = files[i];
+    img.alt = 'Rrëshqitja ' + (i + 1);
+    select.value = i;
+    prevBtn.disabled = i === 0;
+    nextBtn.disabled = i === files.length - 1;
+    // warm the immediate neighbours so prev/next feels instant
+    [i - 1, i + 1].forEach(function (n) {
+      if (n >= 0 && n < files.length) { new Image().src = files[n]; }
+    });
+  }
+
+  prevBtn.addEventListener('click', function () { show(i - 1); });
+  nextBtn.addEventListener('click', function () { show(i + 1); });
+  select.addEventListener('change', function () { show(parseInt(select.value, 10)); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowLeft') show(i - 1);
+    if (e.key === 'ArrowRight') show(i + 1);
+  });
+
+  show(0);
+})();
+</script>
+</body>
+</html>

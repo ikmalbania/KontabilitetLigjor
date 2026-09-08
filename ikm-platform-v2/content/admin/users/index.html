@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Përdoruesit — Admin — Kontabilist Ligjor</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="watermark"></div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="/admin/" class="brand">IKM <span>Admin</span></a>
+    <div class="user-info">
+      <span id="user-email"></span>
+      <button id="logout-btn" class="btn-ghost">Dil</button>
+    </div>
+  </div>
+</header>
+<div class="admin-shell" id="protected-content">
+  <div class="admin-header">
+    <h1>Përdoruesit</h1>
+    <div class="admin-nav-links">
+      <a href="/admin/">← Paneli i Administratorit</a>
+    </div>
+  </div>
+
+  <div id="loading">Duke ngarkuar…</div>
+  <table class="admin-table" id="users-table" style="display:none">
+    <thead><tr><th>Email</th><th>Roli</th><th>U regjistrua</th><th></th></tr></thead>
+    <tbody id="users-tbody"></tbody>
+  </table>
+</div>
+<script src="/js/auth-gate.js"></script>
+<script>
+function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+async function getJSON(url) {
+  var res = await fetch(url, { credentials: 'same-origin' });
+  var body = {};
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(body.error || ('Gabim (' + res.status + ')'));
+  return body;
+}
+async function postJSON(url, data) {
+  var res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(data),
+  });
+  var body = {};
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(body.error || ('Gabim (' + res.status + ')'));
+  return body;
+}
+function fmtDate(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleDateString('sq-AL'); } catch (e) { return iso; }
+}
+
+async function load() {
+  var data = await getJSON('/api/admin-list-users');
+  var tbody = document.getElementById('users-tbody');
+  tbody.innerHTML = '';
+  data.users.forEach(function (u) {
+    var tr = document.createElement('tr');
+
+    var roleCell = '<td>' + (u.role === 'admin'
+      ? '<strong style="color:var(--navy)">Administrator</strong>'
+      : 'Student') + '</td>';
+
+    tr.innerHTML =
+      '<td>' + esc(u.email) + '</td>' +
+      roleCell +
+      '<td>' + fmtDate(u.createdAt) + '</td>' +
+      '<td></td>';
+
+    var actionsTd = tr.querySelector('td:last-child');
+
+    var toggleBtn = document.createElement('a');
+    toggleBtn.className = 'admin-action';
+    toggleBtn.href = '#';
+    toggleBtn.textContent = u.role === 'admin' ? 'Bëje student' : 'Bëje admin';
+    toggleBtn.addEventListener('click', async function (e) {
+      e.preventDefault();
+      var newRole = u.role === 'admin' ? 'student' : 'admin';
+      if (!confirm('Ndrysho rolin e ' + u.email + ' në "' + newRole + '"?')) return;
+      try {
+        await postJSON('/api/admin-set-role', { email: u.email, role: newRole });
+        await load();
+      } catch (err) { alert('Gabim: ' + err.message); }
+    });
+
+    var resetBtn = document.createElement('a');
+    resetBtn.className = 'admin-action';
+    resetBtn.href = '#';
+    resetBtn.textContent = 'Rivendos fjalëkalimin';
+    resetBtn.addEventListener('click', async function (e) {
+      e.preventDefault();
+      var newPw = prompt('Fjalëkalimi i ri për ' + u.email + ' (min. 8 karaktere):');
+      if (!newPw) return;
+      try {
+        await postJSON('/api/admin-reset-password', { email: u.email, newPassword: newPw });
+        alert('Fjalëkalimi u ndryshua.');
+      } catch (err) { alert('Gabim: ' + err.message); }
+    });
+
+    var delBtn = document.createElement('a');
+    delBtn.className = 'admin-action';
+    delBtn.style.color = '#8B1E1E';
+    delBtn.href = '#';
+    delBtn.textContent = 'Fshi';
+    delBtn.addEventListener('click', async function (e) {
+      e.preventDefault();
+      if (!confirm('Fshi llogarinë e ' + u.email + '? Nuk mund të kthehet mbrapa.')) return;
+      try {
+        await postJSON('/api/admin-delete-user', { email: u.email });
+        await load();
+      } catch (err) { alert('Gabim: ' + err.message); }
+    });
+
+    actionsTd.appendChild(toggleBtn);
+    actionsTd.appendChild(document.createTextNode(' '));
+    actionsTd.appendChild(resetBtn);
+    actionsTd.appendChild(document.createTextNode(' '));
+    actionsTd.appendChild(delBtn);
+
+    tbody.appendChild(tr);
+  });
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('users-table').style.display = 'table';
+}
+
+load().catch(function (err) {
+  document.getElementById('loading').textContent = 'Gabim: ' + err.message;
+});
+</script>
+</body>
+</html>
