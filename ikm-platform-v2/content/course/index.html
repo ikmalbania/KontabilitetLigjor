@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kurset e Mia — IKM</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="watermark"></div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="/course/" class="brand">IKM <span>Platforma e Kurseve</span></a>
+    <div class="user-info">
+      <span id="user-email"></span>
+      <button id="change-password-btn" class="btn-ghost">Ndrysho fjalëkalimin</button>
+      <button id="logout-btn" class="btn-ghost">Dil</button>
+    </div>
+  </div>
+</header>
+<div class="layout" style="grid-template-columns: 1fr;">
+  <main class="content" id="protected-content">
+    <div class="module-header">
+      <span class="module-tag">Llogaria Ime</span>
+      <h1>Kurset e Mia</h1>
+    </div>
+    <div class="course-grid">
+
+      <a class="course-card" href="/course/kontabilist-ligjor/modul-1/">
+        <div class="course-card-tag">Aktiv</div>
+        <h2>Kontabilist Ligjor</h2>
+        <p>Programi i Çertifikimit i Institutit të Kontabilistëve të Miratuar (IKM) — 10 module, teknika investigimi dhe zbulimi mashtrimi.</p>
+        <span class="course-card-cta">Vazhdo kursin →</span>
+      </a>
+
+      <div class="course-card course-card-soon">
+        <div class="course-card-tag course-card-tag-soon">Së shpejti</div>
+        <h2>Kursi Tjetër</h2>
+        <p>Kurse të reja shtohen këtu automatikisht, ndërkohë që i përgatisim.</p>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script src="/js/auth-gate.js"></script>
+<style>
+  .course-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 20px; margin-top: 8px; }
+  .course-card { background: #fff; border: 1px solid #DCE3EA; border-radius: 8px; padding: 24px; display: block; transition: box-shadow .15s, transform .15s; }
+  .course-card:hover { box-shadow: 0 8px 24px rgba(19,51,97,0.12); transform: translateY(-2px); text-decoration: none; }
+  .course-card h2 { font-family: Georgia, serif; color: #133361; font-size: 19px; margin: 10px 0 8px; }
+  .course-card p { color: #4A5A6B; font-size: 14px; margin: 0 0 14px; text-align: left; }
+  .course-card-tag { display: inline-block; background: #0078B9; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 3px; }
+  .course-card-tag-soon { background: #9AA7B4; }
+  .course-card-cta { color: #00569C; font-weight: 600; font-size: 14px; }
+  .course-card-soon { opacity: 0.6; cursor: default; }
+</style>
+</body>
+</html>
