@@ -1,10 +1,15 @@
-const { getStore } = require('@netlify/blobs');
+const { getStore, connectLambda } = require('@netlify/blobs');
 const { hashPassword } = require('./_password');
 const { createSessionToken, sessionCookieHeader, displayCookieHeader } = require('./_session');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 exports.handler = async (event) => {
+  // Required for Netlify Blobs to pick up the site context when a
+  // function is written in this classic (Lambda-compatible) handler
+  // style, rather than the newer web-standard Request/Response style.
+  connectLambda(event);
+
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method not allowed' };
   }

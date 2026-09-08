@@ -1,8 +1,10 @@
-const { getStore } = require('@netlify/blobs');
+const { getStore, connectLambda } = require('@netlify/blobs');
 const { verifyPassword } = require('./_password');
 const { createSessionToken, sessionCookieHeader, displayCookieHeader } = require('./_session');
 
 exports.handler = async (event) => {
+  connectLambda(event);
+
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method not allowed' };
   }
