@@ -73,7 +73,7 @@ def toc_to_html(items):
             li.append(f'<li><a href="#{it["id"]}">{esc(it["text"])}</a>{sub}</li>')
         else:
             li.append(f'<li>{sub}</li>')
-    return f'<ul class="toc-list">{"".join(li)}</ul>'
+    return f'<ul class="toc-tree">{"".join(li)}</ul>'
 
 PAGE_TEMPLATE = '''<!DOCTYPE html>
 <html lang="sq">
@@ -95,7 +95,7 @@ PAGE_TEMPLATE = '''<!DOCTYPE html>
     </div>
   </div>
 </header>
-<div class="layout">
+<div class="layout has-toc">
   <nav class="sidebar">
     <div class="sidebar-title"><a href="/course/">← Të gjitha kurset</a></div>
     <div class="sidebar-title">{course_name}</div>
@@ -108,16 +108,18 @@ PAGE_TEMPLATE = '''<!DOCTYPE html>
       <span class="module-tag">Moduli {modnum}</span>
       <h1>{title_clean}</h1>
     </div>
-    <nav class="toc-box" aria-label="Përmbajtja e moduli">
-      <div class="toc-title">Përmbajtja</div>
-      {toc}
-    </nav>
+    {slides_entry}
     <article class="doc-body">
       {body}
     </article>
   </main>
+  <aside class="toc-rail" aria-label="Përmbajtja e modulit">
+    <div class="toc-title">Përmbajtja</div>
+    {toc}
+  </aside>
 </div>
 <script src="/js/auth-gate.js"></script>
+<script src="/js/toc-scrollspy.js"></script>
 </body>
 </html>
 '''
@@ -176,9 +178,22 @@ for course_slug, course in COURSES.items():
         toc_items = build_section_toc(data['blocks'])
         toc_html = toc_to_html(toc_items)
         nav_html = build_nav(course_slug, modnum)
+
+        slides_dir = f'content/course/{course_slug}/modul-{modnum}/slides'
+        slides_entry = ''
+        if os.path.exists(os.path.join(slides_dir, 'index.html')):
+            n_slides = len([f for f in os.listdir(slides_dir) if f.endswith('.jpg')])
+            slides_entry = (
+                f'<a class="slides-entry" href="/course/{course_slug}/modul-{modnum}/slides/">'
+                f'<span class="slides-entry-icon">📊</span>'
+                f'<span class="slides-entry-text"><strong>Shiko Prezantimin</strong>'
+                f'<span>{n_slides} rrëshqitje</span></span></a>'
+            )
+
         page = PAGE_TEMPLATE.format(
             title=title_clean, modnum=modnum, title_clean=title_clean,
-            nav=nav_html, toc=toc_html, body=body_html, course_name=course['name']
+            nav=nav_html, toc=toc_html, body=body_html, course_name=course['name'],
+            slides_entry=slides_entry,
         )
         outdir = f'content/course/{course_slug}/modul-{modnum}'
         os.makedirs(outdir, exist_ok=True)
