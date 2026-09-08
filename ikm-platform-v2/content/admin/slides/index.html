@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rrëshqitjet — Admin — Kontabilist Ligjor</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="watermark"></div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="/admin/" class="brand">IKM <span>Admin</span></a>
+    <div class="user-info">
+      <span id="user-email"></span>
+      <button id="logout-btn" class="btn-ghost">Dil</button>
+    </div>
+  </div>
+</header>
+<div class="admin-shell" id="protected-content">
+  <div class="admin-header">
+    <h1 id="page-title">Rrëshqitjet e Modulit</h1>
+    <div class="admin-nav-links">
+      <a href="/admin/">← Paneli i Administratorit</a>
+      <a id="view-live-link" href="#" target="_blank">Shiko prezantimin live ↗</a>
+    </div>
+  </div>
+
+  <p style="font-size:13px;color:#5A6B7D">
+    Ngarko imazhe (JPG/PNG) të eksportuara nga PowerPoint (File → Export →
+    Change File Type → JPEG/PNG, "All Slides"). Rendi i ngarkimit përcakton
+    rendin e shfaqjes.
+  </p>
+
+  <div class="admin-toolbar">
+    <input type="file" id="file-input" accept="image/jpeg,image/png" multiple>
+    <button class="btn-primary" id="add-btn" style="width:auto;padding:8px 18px">Shto në fund</button>
+    <button class="btn-ghost" id="replace-btn" style="color:#8B1E1E;border-color:#8B1E1E">Zëvendëso krejt dekun</button>
+  </div>
+  <div class="admin-toolbar">
+    <button class="btn-ghost" id="migrate-btn" style="color:var(--navy);border-color:var(--line)">Migro nga skedarët statikë ekzistues</button>
+    <span style="font-size:12px;color:#5A6B7D">(vetëm nëse ky modul ka tashmë rrëshqitje të ngarkuara më parë si skedarë statikë, jo përmes panelit)</span>
+  </div>
+  <div id="upload-status" style="font-size:13px;margin-bottom:10px"></div>
+
+  <div id="loading">Duke ngarkuar…</div>
+  <div class="slide-manager-grid" id="slides-grid"></div>
+</div>
+<script src="/js/auth-gate.js"></script>
+<script>
+var params = new URLSearchParams(window.location.search);
+var course = params.get('course');
+var modnum = params.get('modnum');
+
+if (!course || !modnum) {
+  document.getElementById('loading').textContent = 'Mungon course ose modnum në URL.';
+  throw new Error('missing params');
+}
+document.getElementById('view-live-link').href = '/course/' + course + '/modul-' + modnum + '/slides/';
+document.getElementById('page-title').textContent = 'Rrëshqitjet e Modulit ' + modnum;
+
+async function getJSON(url) {
+  var res = await fetch(url, { credentials: 'same-origin' });
+  var body = {};
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(body.error || ('Gabim (' + res.status + ')'));
+  return body;
+}
+async function postJSON(url, data) {
+  var res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(data),
+  });
+  var body = {};
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(body.error || ('Gabim (' + res.status + ')'));
+  return body;
+}
+
+function imgUrl(f) {
+  return '/api/slide-image?course=' + encodeURIComponent(course) + '&modnum=' + encodeURIComponent(modnum) + '&file=' + encodeURIComponent(f);
+}
+
+var currentFiles = [];
+
+async function loadSlides() {
+  document.getElementById('loading').style.display = 'block';
+  var data = await getJSON('/api/list-slides?course=' + encodeURIComponent(course) + '&modnum=' + encodeURIComponent(modnum));
+  currentFiles = data.files || [];
+  var grid = document.getElementById('slides-grid');
+  grid.innerHTML = '';
+  currentFiles.forEach(function (f, idx) {
+    var item = document.createElement('div');
+    item.className = 'slide-manager-item';
+    var img = document.createElement('img');
+    img.src = imgUrl(f);
+    img.alt = 'Rrëshqitja ' + (idx + 1);
+    var num = document.createElement('span');
+    num.className = 'slide-num';
+    num.textContent = idx + 1;
+    var delBtn = document.createElement('button');
+    delBtn.className = 'slide-delete';
+    delBtn.textContent = '✕';
+    delBtn.title = 'Fshi këtë rrëshqitje';
+    delBtn.addEventListener('click', async function () {
+      if (!confirm('Fshi rrëshqitjen ' + (idx + 1) + '?')) return;
+      await postJSON('/api/admin-delete-slides', { course: course, modnum: modnum, filename: f });
+      await loadSlides();
+    });
+    item.appendChild(img); item.appendChild(num); item.appendChild(delBtn);
+    grid.appendChild(item);
+  });
+  document.getElementById('loading').style.display = 'none';
+}
+
+function fileToBase64(file) {
+  return new Promise(function (resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function () { resolve(reader.result.split(',')[1]); };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function extOf(filename) {
+  var m = /\.(\w+)$/.exec(filename || '');
+  var ext = m ? m[1].toLowerCase() : 'jpg';
+  return ext === 'jpeg' ? 'jpg' : ext;
+}
+
+async function uploadFiles(files, startIndex) {
+  var status = document.getElementById('upload-status');
+  var width = Math.max(2, String(startIndex + files.length).length);
+  for (var i = 0; i < files.length; i++) {
+    var num = startIndex + i + 1;
+    var filename = 'slide-' + String(num).padStart(width, '0') + '.' + extOf(files[i].name);
+    status.textContent = 'Duke ngarkuar ' + (i + 1) + ' nga ' + files.length + '…';
+    var base64 = await fileToBase64(files[i]);
+    await postJSON('/api/admin-upload-slide', { course: course, modnum: modnum, filename: filename, dataBase64: base64 });
+  }
+  status.textContent = '✓ U ngarkuan ' + files.length + ' rrëshqitje.';
+}
+
+document.getElementById('add-btn').addEventListener('click', async function () {
+  var files = Array.from(document.getElementById('file-input').files);
+  if (!files.length) { alert('Zgjidh të paktën një skedar.'); return; }
+  this.disabled = true;
+  try {
+    await uploadFiles(files, currentFiles.length);
+    await loadSlides();
+  } catch (err) {
+    document.getElementById('upload-status').textContent = 'Gabim: ' + err.message;
+  }
+  this.disabled = false;
+});
+
+document.getElementById('replace-btn').addEventListener('click', async function () {
+  var files = Array.from(document.getElementById('file-input').files);
+  if (!files.length) { alert('Zgjidh skedarët e rinj së pari.'); return; }
+  if (!confirm('Kjo do të fshijë të gjitha rrëshqitjet aktuale (' + currentFiles.length + ') dhe do t\'i zëvendësojë me ' + files.length + ' të reja. Vazhdo?')) return;
+  this.disabled = true;
+  try {
+    document.getElementById('upload-status').textContent = 'Duke fshirë dekun aktual…';
+    await postJSON('/api/admin-delete-slides', { course: course, modnum: modnum, deleteAll: true });
+    await uploadFiles(files, 0);
+    await loadSlides();
+  } catch (err) {
+    document.getElementById('upload-status').textContent = 'Gabim: ' + err.message;
+  }
+  this.disabled = false;
+});
+
+document.getElementById('migrate-btn').addEventListener('click', async function () {
+  if (!confirm('Kjo kërkon rrëshqitjet statike ekzistuese për këtë modul (nëse ka) dhe i kopjon te sistemi i ri, pa i fshirë origjinalet. Vazhdo?')) return;
+  var btn = this;
+  var status = document.getElementById('upload-status');
+  btn.disabled = true;
+  try {
+    var found = [];
+    var width = 2;
+    for (var n = 1; n <= 300; n++) {
+      var padded = String(n).padStart(width, '0');
+      var staticUrl = '/course/' + course + '/modul-' + modnum + '/slides/slide-' + padded + '.jpg';
+      var res = await fetch(staticUrl, { credentials: 'same-origin' });
+      if (!res.ok) break;
+      found.push({ filename: 'slide-' + padded + '.jpg', blob: await res.blob() });
+      status.textContent = 'Duke gjetur rrëshqitje statike… (' + found.length + ' deri tani)';
+    }
+    if (!found.length) {
+      status.textContent = 'Nuk u gjetën rrëshqitje statike për këtë modul te /course/' + course + '/modul-' + modnum + '/slides/slide-01.jpg.';
+      btn.disabled = false;
+      return;
+    }
+    for (var i = 0; i < found.length; i++) {
+      status.textContent = 'Duke migruar ' + (i + 1) + ' nga ' + found.length + '…';
+      var base64 = await new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function () { resolve(reader.result.split(',')[1]); };
+        reader.onerror = reject;
+        reader.readAsDataURL(found[i].blob);
+      });
+      await postJSON('/api/admin-upload-slide', { course: course, modnum: modnum, filename: found[i].filename, dataBase64: base64 });
+    }
+    status.textContent = '✓ U migruan ' + found.length + ' rrëshqitje nga skedarët statikë.';
+    await loadSlides();
+  } catch (err) {
+    status.textContent = 'Gabim: ' + err.message;
+  }
+  btn.disabled = false;
+});
+
+loadSlides().catch(function (err) {
+  document.getElementById('loading').textContent = 'Gabim: ' + err.message;
+});
+</script>
+</body>
+</html>

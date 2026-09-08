@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edito Modulin — Admin — Kontabilist Ligjor</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="watermark"></div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="/admin/" class="brand">IKM <span>Admin</span></a>
+    <div class="user-info">
+      <span id="user-email"></span>
+      <button id="logout-btn" class="btn-ghost">Dil</button>
+    </div>
+  </div>
+</header>
+<div class="admin-shell" id="protected-content">
+  <div class="admin-header">
+    <h1 id="page-title">Edito Modulin</h1>
+    <div class="admin-nav-links">
+      <a href="/admin/">← Paneli i Administratorit</a>
+      <a id="view-live-link" href="#" target="_blank">Shiko faqen live ↗</a>
+    </div>
+  </div>
+
+  <div id="loading">Duke ngarkuar…</div>
+  <div id="editor" style="display:none">
+    <input type="text" id="title-input" placeholder="Titulli i plotë (p.sh. MODULI 7 — SKEMAT E RYSHFETIT DHE KORRUPSIONIT)"
+      style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:6px;font-size:15px;margin-bottom:18px;font-family:var(--serif)">
+
+    <div id="blocks-container"></div>
+
+    <div class="admin-toolbar">
+      <span>Shto bllok:</span>
+      <select id="add-block-type">
+        <option value="para">Paragraf</option>
+        <option value="heading">Titull (H1)</option>
+        <option value="bullet">Pikë liste</option>
+        <option value="box_koncept">Kuti — Koncept Kyç</option>
+        <option value="box_praktike">Kuti — Nga Praktika</option>
+        <option value="box_rast">Kuti — Rast Ilustrues</option>
+        <option value="box_permbledhje">Kuti — Përmbledhje</option>
+      </select>
+      <button class="btn-ghost" id="add-block-btn" style="color:var(--navy);border-color:var(--line)">+ Shto</button>
+      <button class="btn-ghost" id="show-import-btn" style="color:var(--navy);border-color:var(--line)">Importo nga JSON…</button>
+    </div>
+
+    <div id="import-box" style="display:none;margin:14px 0">
+      <p style="font-size:13px;color:#5A6B7D">
+        Ngjit këtu JSON-in e blloqeve (p.sh. atë që Claude e përgatit nga një
+        dokument Word) — do të zëvendësojë krejt përmbajtjen aktuale të
+        editorit më poshtë (jo faqen live, derisa të klikosh "Ruaj").
+      </p>
+      <textarea id="import-textarea" rows="6" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;font-family:monospace;font-size:12.5px"
+        placeholder='[{"type":"heading","level":1,"text":"Hyrje e Modulit"},{"type":"para","text":"..."}]'></textarea>
+      <div style="margin-top:8px">
+        <button class="btn-primary" id="apply-import-btn" style="width:auto;padding:8px 18px">Ngarko në Editor</button>
+        <button class="btn-ghost" id="cancel-import-btn" style="color:var(--navy);border-color:var(--line)">Anulo</button>
+      </div>
+      <div id="import-status" style="font-size:13px;margin-top:6px"></div>
+    </div>
+
+    <div class="admin-toolbar">
+      <button class="btn-primary" id="save-btn" style="width:auto;padding:10px 24px">Ruaj Ndryshimet</button>
+      <span id="save-status"></span>
+    </div>
+    <p style="font-size:13px;color:#5A6B7D">
+      Titujt (H1/H2) marrin automatikisht një lidhje të re në "Përmbajtja" kur
+      ruhen — nuk ka nevojë t'i vendosësh vetë. Kutitë (Koncept Kyç, Nga
+      Praktika, etj.) zakonisht kanë dy blloqe: një me vetëm titullin e kutisë
+      (p.sh. "KONCEPT KYÇ") dhe një tjetër poshtë me përmbajtjen.
+    </p>
+  </div>
+</div>
+<script src="/js/auth-gate.js"></script>
+<script>
+var params = new URLSearchParams(window.location.search);
+var course = params.get('course');
+var modnum = params.get('modnum');
+var blocks = [];
+
+if (!course || !modnum) {
+  document.getElementById('loading').textContent = 'Mungon course ose modnum në URL.';
+  throw new Error('missing params');
+}
+document.getElementById('view-live-link').href = '/course/' + course + '/modul-' + modnum + '/';
+
+async function getJSON(url) {
+  var res = await fetch(url, { credentials: 'same-origin' });
+  var body = {};
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(body.error || ('Gabim (' + res.status + ')'));
+  return body;
+}
+async function postJSON(url, data) {
+  var res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(data),
+  });
+  var body = {};
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(body.error || ('Gabim (' + res.status + ')'));
+  return body;
+}
+
+var TYPE_LABELS = {
+  heading: 'Titull', para: 'Paragraf', bullet: 'Pikë liste', caption: 'Titull tabele/figure',
+  table: 'Tabelë (HTML)', box_koncept: 'Koncept Kyç', box_praktike: 'Nga Praktika',
+  box_rast: 'Rast Ilustrues', box_permbledhje: 'Përmbledhje',
+};
+
+function renderBlocks() {
+  var container = document.getElementById('blocks-container');
+  container.innerHTML = '';
+  blocks.forEach(function (b, i) {
+    var row = document.createElement('div');
+    row.className = 'block-editor-row';
+
+    var label = document.createElement('select');
+    label.disabled = true;
+    label.innerHTML = '<option>' + (TYPE_LABELS[b.type] || b.type) + '</option>';
+
+    var input;
+    if (b.type === 'table') {
+      input = document.createElement('textarea');
+      input.value = b.html || '';
+      input.rows = 3;
+      input.addEventListener('input', function () { b.html = input.value; });
+    } else {
+      input = document.createElement('textarea');
+      input.value = b.text || '';
+      input.rows = b.type === 'heading' ? 1 : 2;
+      input.addEventListener('input', function () { b.text = input.value; });
+    }
+
+    row.appendChild(label);
+    if (b.type === 'heading') {
+      var lvlSelect = document.createElement('select');
+      lvlSelect.className = 'block-heading-level';
+      [1, 2, 3, 4].forEach(function (lvl) {
+        var opt = document.createElement('option');
+        opt.value = lvl; opt.textContent = 'H' + lvl;
+        if (b.level === lvl) opt.selected = true;
+        lvlSelect.appendChild(opt);
+      });
+      lvlSelect.addEventListener('change', function () { b.level = parseInt(lvlSelect.value, 10); });
+      row.appendChild(lvlSelect);
+    }
+    row.appendChild(input);
+
+    var actions = document.createElement('div');
+    actions.className = 'block-editor-actions';
+    var upBtn = document.createElement('button'); upBtn.type = 'button'; upBtn.textContent = '↑';
+    upBtn.title = 'Lëviz lart';
+    upBtn.disabled = i === 0;
+    upBtn.addEventListener('click', function () { moveBlock(i, -1); });
+    var downBtn = document.createElement('button'); downBtn.type = 'button'; downBtn.textContent = '↓';
+    downBtn.title = 'Lëviz poshtë';
+    downBtn.disabled = i === blocks.length - 1;
+    downBtn.addEventListener('click', function () { moveBlock(i, 1); });
+    var delBtn = document.createElement('button'); delBtn.type = 'button'; delBtn.textContent = '✕';
+    delBtn.title = 'Fshi';
+    delBtn.addEventListener('click', function () {
+      if (confirm('Fshi këtë bllok?')) { blocks.splice(i, 1); renderBlocks(); }
+    });
+    actions.appendChild(upBtn); actions.appendChild(downBtn); actions.appendChild(delBtn);
+    row.appendChild(actions);
+
+    container.appendChild(row);
+  });
+}
+
+function moveBlock(i, dir) {
+  var j = i + dir;
+  if (j < 0 || j >= blocks.length) return;
+  var tmp = blocks[i]; blocks[i] = blocks[j]; blocks[j] = tmp;
+  renderBlocks();
+}
+
+document.getElementById('add-block-btn').addEventListener('click', function () {
+  var type = document.getElementById('add-block-type').value;
+  var newBlock = type === 'heading' ? { type: 'heading', level: 2, text: '' } : { type: type, text: '' };
+  blocks.push(newBlock);
+  renderBlocks();
+});
+
+document.getElementById('show-import-btn').addEventListener('click', function () {
+  document.getElementById('import-box').style.display = 'block';
+});
+document.getElementById('cancel-import-btn').addEventListener('click', function () {
+  document.getElementById('import-box').style.display = 'none';
+  document.getElementById('import-status').textContent = '';
+});
+document.getElementById('apply-import-btn').addEventListener('click', function () {
+  var status = document.getElementById('import-status');
+  var raw = document.getElementById('import-textarea').value.trim();
+  if (!raw) { status.textContent = 'Ngjit JSON-in më parë.'; return; }
+  var parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    status.textContent = 'JSON i pavlefshëm: ' + e.message;
+    return;
+  }
+  if (!Array.isArray(parsed)) {
+    status.textContent = 'JSON duhet të jetë një listë blloqesh (array), p.sh. [{"type":"para","text":"..."}].';
+    return;
+  }
+  var validTypes = ['heading', 'para', 'bullet', 'caption', 'table', 'box_koncept', 'box_praktike', 'box_rast', 'box_permbledhje'];
+  for (var i = 0; i < parsed.length; i++) {
+    if (!parsed[i] || validTypes.indexOf(parsed[i].type) === -1) {
+      status.textContent = 'Blloku ' + i + ' ka tip të pavlefshëm: ' + (parsed[i] && parsed[i].type);
+      return;
+    }
+  }
+  if (blocks.length && !confirm('Kjo do të zëvendësojë ' + blocks.length + ' blloqet aktuale në editor me ' + parsed.length + ' blloqe të reja nga JSON-i. Vazhdo?')) {
+    return;
+  }
+  blocks = parsed;
+  renderBlocks();
+  document.getElementById('import-box').style.display = 'none';
+  document.getElementById('import-textarea').value = '';
+  status.textContent = '';
+});
+
+document.getElementById('save-btn').addEventListener('click', async function () {
+  var btn = this;
+  var status = document.getElementById('save-status');
+  btn.disabled = true;
+  status.textContent = 'Duke ruajtur…';
+  try {
+    var result = await postJSON('/api/admin-save-module', {
+      course: course, modnum: modnum,
+      title: document.getElementById('title-input').value,
+      blocks: blocks,
+    });
+    status.textContent = '✓ U ruajt (' + result.blockCount + ' blloqe). Faqja live është përditësuar menjëherë.';
+  } catch (err) {
+    status.textContent = 'Gabim: ' + err.message;
+  }
+  btn.disabled = false;
+});
+
+(async function () {
+  try {
+    var data = await getJSON('/api/admin-get-module?course=' + encodeURIComponent(course) + '&modnum=' + encodeURIComponent(modnum));
+    document.getElementById('page-title').textContent = 'Edito Modulin ' + modnum;
+    document.getElementById('title-input').value = data.title;
+    blocks = data.blocks;
+    renderBlocks();
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('editor').style.display = 'block';
+  } catch (err) {
+    if (err.message.indexOf('404') !== -1 || err.message.toLowerCase().indexOf('nuk u gjet') !== -1) {
+      document.getElementById('loading').innerHTML =
+        'Ky modul nuk ka ende përmbajtje. Shko te <a href="/admin/">Paneli</a> dhe kliko "Importo Modulet",' +
+        ' ose fillo një modul krejt të ri duke shtuar blloqe këtu dhe duke ruajtur.';
+      document.getElementById('title-input').value = '';
+      blocks = [];
+      renderBlocks();
+      document.getElementById('editor').style.display = 'block';
+    } else {
+      document.getElementById('loading').textContent = 'Gabim: ' + err.message;
+    }
+  }
+})();
+</script>
+</body>
+</html>

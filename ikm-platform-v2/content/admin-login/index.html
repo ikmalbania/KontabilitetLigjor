@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Kontabilist Ligjor</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="auth-shell">
+  <div class="auth-card">
+    <h1>Paneli i Administratorit</h1>
+    <p>Kontabilist Ligjor — IKM</p>
+
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" id="tab-login">Identifikohu</button>
+      <button type="button" class="auth-tab" id="tab-signup">Krijo llogari</button>
+    </div>
+
+    <form id="login-form" class="auth-form">
+      <input type="email" id="login-email" placeholder="Email" required autocomplete="email">
+      <input type="password" id="login-password" placeholder="Fjalëkalimi" required autocomplete="current-password">
+      <button type="submit" class="btn-primary">Identifikohu</button>
+    </form>
+
+    <form id="signup-form" class="auth-form" style="display:none">
+      <input type="text" id="signup-code" placeholder="Kodi i administratorit" required>
+      <input type="email" id="signup-email" placeholder="Email" required autocomplete="email">
+      <input type="password" id="signup-password" placeholder="Fjalëkalimi (min. 8 karaktere)" required minlength="8" autocomplete="new-password">
+      <button type="submit" class="btn-primary">Krijo llogarinë e administratorit</button>
+    </form>
+
+    <div id="auth-message" class="auth-message" style="display:none"></div>
+  </div>
+</div>
+<script>
+  var tabLogin = document.getElementById('tab-login');
+  var tabSignup = document.getElementById('tab-signup');
+  var loginForm = document.getElementById('login-form');
+  var signupForm = document.getElementById('signup-form');
+  var msgBox = document.getElementById('auth-message');
+
+  function showMessage(text, isError) {
+    msgBox.textContent = text;
+    msgBox.style.display = 'block';
+    msgBox.className = 'auth-message' + (isError ? ' auth-message-error' : ' auth-message-ok');
+  }
+
+  function switchTab(which) {
+    var loginActive = which === 'login';
+    tabLogin.classList.toggle('active', loginActive);
+    tabSignup.classList.toggle('active', !loginActive);
+    loginForm.style.display = loginActive ? 'flex' : 'none';
+    signupForm.style.display = loginActive ? 'none' : 'flex';
+    msgBox.style.display = 'none';
+  }
+  tabLogin.addEventListener('click', function () { switchTab('login'); });
+  tabSignup.addEventListener('click', function () { switchTab('signup'); });
+
+  if (window.location.search.indexOf('auth=required') !== -1) {
+    showMessage('Duhet të identifikohesh si administrator për të hyrë këtu.', false);
+  }
+
+  async function postJSON(url, data) {
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(data),
+    });
+    var body = {};
+    try { body = await res.json(); } catch (e) {}
+    if (!res.ok) {
+      throw new Error(body.error || ('Gabim (' + res.status + ')'));
+    }
+    return body;
+  }
+
+  loginForm.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var btn = loginForm.querySelector('button');
+    btn.disabled = true;
+    try {
+      await postJSON('/api/login', {
+        email: document.getElementById('login-email').value,
+        password: document.getElementById('login-password').value,
+      });
+      window.location.href = '/admin/';
+    } catch (err) {
+      showMessage(err.message, true);
+      btn.disabled = false;
+    }
+  });
+
+  signupForm.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var btn = signupForm.querySelector('button');
+    btn.disabled = true;
+    try {
+      await postJSON('/api/admin-signup', {
+        code: document.getElementById('signup-code').value,
+        email: document.getElementById('signup-email').value,
+        password: document.getElementById('signup-password').value,
+      });
+      window.location.href = '/admin/';
+    } catch (err) {
+      showMessage(err.message, true);
+      btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
