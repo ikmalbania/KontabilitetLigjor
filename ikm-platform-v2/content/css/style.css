@@ -14,6 +14,8 @@
   --praktike-line: #B87A10;
   --rast-bg: #E6F2EA;
   --rast-line: #1A7A4A;
+  --permbledhje-bg: #F2F5FA;
+  --permbledhje-line: #133361;
   --serif: Georgia, "Cambria", "Times New Roman", serif;
   --sans: "Segoe UI", Calibri, system-ui, -apple-system, sans-serif;
 }
@@ -138,8 +140,39 @@ a:hover { text-decoration: underline; }
   line-height: 1.25;
 }
 
+/* ---- In-page section navigation (per module) ---- */
+.toc-box {
+  max-width: 720px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px 20px;
+  margin-bottom: 32px;
+}
+.toc-title {
+  font-family: var(--serif);
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+}
+.toc-list, .toc-sub { list-style: none; margin: 0; padding: 0; }
+.toc-list > li { margin-bottom: 6px; }
+.toc-list > li > a {
+  color: var(--navy);
+  font-weight: 600;
+  font-size: 14.5px;
+}
+.toc-sub { padding-left: 18px; margin-top: 4px; }
+.toc-sub li { margin-bottom: 4px; }
+.toc-sub a { color: var(--blue); font-weight: 400; font-size: 13.5px; }
+.toc-list a:hover, .toc-sub a:hover { text-decoration: underline; }
+
 .doc-body { max-width: 720px; }
 .doc-body h1 { font-family: var(--serif); font-size: 26px; color: var(--navy); margin-top: 44px; }
+.doc-body h1[id], .doc-body h2[id] { scroll-margin-top: 80px; }
 .doc-body h2 {
   font-family: var(--serif);
   font-size: 21px;
@@ -165,6 +198,7 @@ a:hover { text-decoration: underline; }
 .box-koncept { background: var(--koncept-bg); border-color: var(--koncept-line); }
 .box-praktike { background: var(--praktike-bg); border-color: var(--praktike-line); }
 .box-rast { background: var(--rast-bg); border-color: var(--rast-line); }
+.box-permbledhje { background: var(--permbledhje-bg); border-left-width: 5px; border-color: var(--permbledhje-line); }
 
 table.doc-table {
   width: 100%;
