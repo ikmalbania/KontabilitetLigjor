@@ -1,6 +1,6 @@
 const { getStore, connectLambda } = require('@netlify/blobs');
 const { verifyPassword } = require('./_password');
-const { createSessionToken, sessionCookieHeader, displayCookieHeader } = require('./_session');
+const { createSessionToken, sessionCookieHeader, displayCookieHeader, roleCookieHeader } = require('./_session');
 
 exports.handler = async (event) => {
   connectLambda(event);
@@ -44,7 +44,7 @@ exports.handler = async (event) => {
   return {
     statusCode: 200,
     multiValueHeaders: {
-      'Set-Cookie': [sessionCookieHeader(token), displayCookieHeader(email)],
+      'Set-Cookie': [sessionCookieHeader(token), displayCookieHeader(email), roleCookieHeader(record.role)],
     },
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ok: true }),

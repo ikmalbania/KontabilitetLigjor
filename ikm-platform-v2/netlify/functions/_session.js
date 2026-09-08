@@ -84,10 +84,21 @@ function displayCookieHeader(email) {
   return `ikm_email=${encodeURIComponent(email.toLowerCase())}; Path=/; Max-Age=${maxAge}; Secure; SameSite=Lax`;
 }
 
+function roleCookieHeader(role) {
+  // Same idea as displayCookieHeader, but for role - lets the page's own
+  // JavaScript show an "Admin panel" link when relevant (e.g. while an
+  // admin is viewing student-facing /course/* pages). Not trusted for
+  // access control - the edge function's own session check is what
+  // actually gates /admin/*, independent of this cookie.
+  const maxAge = SESSION_DAYS * 24 * 60 * 60;
+  return `ikm_role=${encodeURIComponent(role || 'student')}; Path=/; Max-Age=${maxAge}; Secure; SameSite=Lax`;
+}
+
 function clearCookieHeaders() {
   return [
     'ikm_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax',
     'ikm_email=; Path=/; Max-Age=0; Secure; SameSite=Lax',
+    'ikm_role=; Path=/; Max-Age=0; Secure; SameSite=Lax',
   ];
 }
 
@@ -96,5 +107,6 @@ module.exports = {
   verify,
   sessionCookieHeader,
   displayCookieHeader,
+  roleCookieHeader,
   clearCookieHeaders,
 };
