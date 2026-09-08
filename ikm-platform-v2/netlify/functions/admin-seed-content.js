@@ -55,15 +55,18 @@ exports.handler = async (event) => {
 
   for (const [modnum, data] of Object.entries(modulesData)) {
     const key = `kontabilist-ligjor/modul-${modnum}`;
-    const existing = await contentStore.get(key, { type: 'json' });
-    if (existing && !force) {
+    const existingMeta = await contentStore.getMetadata(key);
+    if (existingMeta && !force) {
       results.modules.push({ modnum, status: 'already present, skipped' });
       continue;
     }
+    const updatedAt = new Date().toISOString();
     await contentStore.setJSON(key, {
       title: data.title,
       blocks: data.blocks,
-      updatedAt: new Date().toISOString(),
+      updatedAt,
+    }, {
+      metadata: { blockCount: data.blocks.length, updatedAt },
     });
     results.modules.push({ modnum, status: 'seeded', blocks: data.blocks.length });
   }
