@@ -36,7 +36,7 @@ exports.handler = async (event) => {
   // Sanity cap - a single slide image shouldn't need to be huge; catches
   // accidental full-resolution uploads before they eat blob storage.
   if (buffer.length > 4 * 1024 * 1024) {
-    return json(413, { error: 'Skedari është shumë i madh (limit 4MB për rrëshqitje).' });
+    return json(413, { error: 'Skedari është shumë i madh (limit 4MB për slide).' });
   }
 
   const store = getStore('ikm-slides');

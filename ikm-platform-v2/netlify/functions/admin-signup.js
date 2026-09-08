@@ -1,6 +1,6 @@
 const { getStore, connectLambda } = require('@netlify/blobs');
-const { hashPassword } = require('./_password');
-const { createSessionToken, sessionCookieHeader, displayCookieHeader } = require('./_session');
+const { hashPassword, verifyPassword } = require('./_password');
+const { createSessionToken, sessionCookieHeader, displayCookieHeader, roleCookieHeader } = require('./_session');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -11,6 +11,14 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // from the student-facing signup flow. Ordinary login afterwards goes
 // through the same /api/login as students - role lives on the account,
 // not on a separate login path.
+//
+// If the email already has a student account (e.g. from testing before
+// the admin panel existed), this promotes it to admin in place instead
+// of failing - but only if the submitted password matches that account's
+// existing password. This solves the chicken-and-egg problem (there's no
+// admin yet to use the "Bëje admin" button in /admin/users/) without
+// weakening security: promoting someone else's account still requires
+// knowing their password, not just the ADMIN_CODE alone.
 exports.handler = async (event) => {
   connectLambda(event);
 
@@ -52,8 +60,28 @@ exports.handler = async (event) => {
   }
 
   const existing = await store.get(email, { type: 'json' });
+
   if (existing) {
-    return json(409, { error: 'Ky email është regjistruar tashmë. Provo të kyçesh.' });
+    if (existing.role === 'admin') {
+      return json(409, { error: 'Ky email është regjistruar tashmë si administrator. Provo të kyçesh.' });
+    }
+    // Existing student account - promote it, but only if the submitted
+    // password proves ownership of that account.
+    if (!verifyPassword(password, existing.passwordHash)) {
+      return json(401, { error: 'Ky email ka tashmë një llogari studenti, por fjalëkalimi i dhënë nuk përputhet me atë llogari.' });
+    }
+    existing.role = 'admin';
+    await store.setJSON(email, existing);
+
+    const token = createSessionToken(email, 'admin');
+    return {
+      statusCode: 200,
+      multiValueHeaders: {
+        'Set-Cookie': [sessionCookieHeader(token), displayCookieHeader(email), roleCookieHeader('admin')],
+      },
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ok: true, promoted: true }),
+    };
   }
 
   const record = {
@@ -68,7 +96,7 @@ exports.handler = async (event) => {
   return {
     statusCode: 200,
     multiValueHeaders: {
-      'Set-Cookie': [sessionCookieHeader(token), displayCookieHeader(email)],
+      'Set-Cookie': [sessionCookieHeader(token), displayCookieHeader(email), roleCookieHeader('admin')],
     },
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ok: true }),

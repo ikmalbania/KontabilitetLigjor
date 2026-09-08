@@ -1,9 +1,24 @@
 # -*- coding: utf-8 -*-
+"""
+Extracts all 10 Kontabilist Ligjor modules from the final consolidated docx
+into modules_data.json, matching the block-type conventions of the original
+extract_modules.py (which only handled modules 1-2), plus:
+  - a 4th box type: box_permbledhje (shading F2F5FA -> "PËRMBLEDHJE" callout)
+  - anchor ids on Heading1 and Heading2 paragraphs (for in-page section nav)
+Front matter before "MODULI 1" (list of tables/figures, consolidated glossary,
+consolidated legal framework) and the master bibliography after "MODULI 10"
+(section "Bibliografia dhe Referencat") are program-level content, not part
+of any single module, so both are excluded here - matches how modul-1/modul-2
+already work (no such content on those pages).
+"""
 from docx import Document
 from docx.oxml.ns import qn
-import re, json
+import re, json, unicodedata
 
-doc = Document('/home/claude/merge/KL_v16.docx')
+# Source docx lives in source/ and is NOT committed to git (13MB binary; see .gitignore).
+# Drop the file there before running this script.
+SRC = 'source/Kontabilitet_Ligjor_-_Materiali_Permbledhur_Final.docx'
+doc = Document(SRC)
 
 def get_children():
     out = []
@@ -29,7 +44,7 @@ def is_bold(el):
     rPr = r.find(qn('w:rPr'))
     return rPr is not None and rPr.find(qn('w:b')) is not None
 
-def has_border_shading(el, color_hint=None):
+def has_border_shading(el):
     pPr = el.find(qn('w:pPr'))
     if pPr is None: return None
     shd = pPr.find(qn('w:shd'))
@@ -50,46 +65,74 @@ def table_to_html(tbl):
 def esc(s):
     return s.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
 
+ALB_MAP = str.maketrans({'ë':'e','Ë':'E','ç':'c','Ç':'C'})
+def slugify(text, seen):
+    t = text.translate(ALB_MAP)
+    t = unicodedata.normalize('NFKD', t).encode('ascii', 'ignore').decode('ascii')
+    t = t.lower()
+    t = re.sub(r'[^a-z0-9]+', '-', t).strip('-')
+    t = t[:60].strip('-') or 'sec'
+    base = t
+    i = 2
+    while t in seen:
+        t = f'{base}-{i}'
+        i += 1
+    seen.add(t)
+    return t
+
 children = get_children()
 
 modules = {}
 current_module = None
+seen_ids = None
 for typ, el in children:
     if typ == 'p':
         txt = ptext(el).strip()
-        if txt.upper().startswith('MODULI ') and '—' in txt:
-            modnum = re.match(r'MODULI (\d+)', txt.upper()).group(1)
-            current_module = modnum
+        style = pstyle(el)
+        if style == 'ModuleTitle' and txt.upper().startswith('MODULI ') and re.match(r'MODULI \d+', txt.upper()):
+            m = re.match(r'MODULI (\d+)', txt.upper())
+            current_module = m.group(1)
             modules[current_module] = {'title': txt, 'blocks': []}
+            seen_ids = set()
             continue
-    if current_module not in ('1','2'):
+        # boundary: master bibliography after module 10 is program-level, not module content
+        if style == 'Heading1' and txt == 'Bibliografia dhe Referencat':
+            current_module = None
+            continue
+    if current_module not in [str(i) for i in range(1, 11)]:
         continue
     if typ == 'tbl':
-        modules[current_module]['blocks'].append({'type':'table','html': table_to_html(el)})
+        modules[current_module]['blocks'].append({'type': 'table', 'html': table_to_html(el)})
         continue
     txt = ptext(el).strip()
     if not txt:
         continue
     style = pstyle(el)
     shd = has_border_shading(el)
-    if style in ('Heading1','Heading2','Heading3','Heading4'):
+    if style in ('Heading1', 'Heading2', 'Heading3', 'Heading4'):
         lvl = int(style[-1])
-        modules[current_module]['blocks'].append({'type':'heading','level':lvl,'text':txt})
+        block = {'type': 'heading', 'level': lvl, 'text': txt}
+        if lvl in (1, 2):
+            block['id'] = slugify(txt, seen_ids)
+        modules[current_module]['blocks'].append(block)
     elif style == 'ListParagraph':
-        modules[current_module]['blocks'].append({'type':'bullet','text':txt})
+        modules[current_module]['blocks'].append({'type': 'bullet', 'text': txt})
     elif shd == 'D6E8F5':
-        modules[current_module]['blocks'].append({'type':'box_koncept','text':txt})
+        modules[current_module]['blocks'].append({'type': 'box_koncept', 'text': txt})
     elif shd == 'FBF3E0':
-        modules[current_module]['blocks'].append({'type':'box_praktike','text':txt})
+        modules[current_module]['blocks'].append({'type': 'box_praktike', 'text': txt})
     elif shd == 'E6F2EA':
-        modules[current_module]['blocks'].append({'type':'box_rast','text':txt})
+        modules[current_module]['blocks'].append({'type': 'box_rast', 'text': txt})
+    elif shd == 'F2F5FA':
+        modules[current_module]['blocks'].append({'type': 'box_permbledhje', 'text': txt})
     elif is_bold(el) and re.match(r'^(Tabela|Figura)\s+\d+\.\d+', txt):
-        modules[current_module]['blocks'].append({'type':'caption','text':txt})
+        modules[current_module]['blocks'].append({'type': 'caption', 'text': txt})
     else:
-        modules[current_module]['blocks'].append({'type':'para','text':txt})
+        modules[current_module]['blocks'].append({'type': 'para', 'text': txt})
 
-with open('modules_data.json','w',encoding='utf-8') as f:
+with open('modules_data.json', 'w', encoding='utf-8') as f:
     json.dump(modules, f, ensure_ascii=False, indent=1)
 
-for k, v in modules.items():
+for k in sorted(modules, key=int):
+    v = modules[k]
     print(k, v['title'], len(v['blocks']), 'blocks')

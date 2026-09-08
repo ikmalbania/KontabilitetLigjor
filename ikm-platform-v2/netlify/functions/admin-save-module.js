@@ -79,7 +79,12 @@ exports.handler = async (event) => {
     blocks: preparedBlocks,
     updatedAt: new Date().toISOString(),
   };
-  await store.setJSON(`${course}/modul-${modnum}`, record);
+  // Metadata is stored alongside but fetched separately via getMetadata()
+  // - much cheaper than downloading the full blocks array just to show a
+  // count on the admin dashboard list.
+  await store.setJSON(`${course}/modul-${modnum}`, record, {
+    metadata: { blockCount: preparedBlocks.length, updatedAt: record.updatedAt },
+  });
 
   return json(200, { ok: true, blockCount: preparedBlocks.length });
 };

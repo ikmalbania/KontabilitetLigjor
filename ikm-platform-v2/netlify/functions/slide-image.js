@@ -21,7 +21,7 @@ exports.handler = async (event) => {
   const key = `${course}/modul-${modnum}/${file}`;
   const result = await store.getWithMetadata(key, { type: 'arrayBuffer' });
   if (!result) {
-    return { statusCode: 404, body: 'Rrëshqitja nuk u gjet.' };
+    return { statusCode: 404, body: 'Slide nuk u gjet.' };
   }
 
   const contentType = (result.metadata && result.metadata.contentType) || 'image/jpeg';

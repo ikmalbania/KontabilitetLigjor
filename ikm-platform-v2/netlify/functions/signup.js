@@ -1,6 +1,6 @@
 const { getStore, connectLambda } = require('@netlify/blobs');
 const { hashPassword } = require('./_password');
-const { createSessionToken, sessionCookieHeader, displayCookieHeader } = require('./_session');
+const { createSessionToken, sessionCookieHeader, displayCookieHeader, roleCookieHeader } = require('./_session');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -68,7 +68,7 @@ exports.handler = async (event) => {
   return {
     statusCode: 200,
     multiValueHeaders: {
-      'Set-Cookie': [sessionCookieHeader(token), displayCookieHeader(email)],
+      'Set-Cookie': [sessionCookieHeader(token), displayCookieHeader(email), roleCookieHeader('student')],
     },
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ok: true }),
