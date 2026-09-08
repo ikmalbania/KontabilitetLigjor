@@ -25,6 +25,38 @@
     </div>
   </div>
 
+  <div class="admin-toolbar" style="align-items:flex-start;flex-direction:column">
+    <button class="btn-ghost" id="show-create-btn" style="color:var(--navy);border-color:var(--line)">+ Krijo përdorues</button>
+  </div>
+
+  <div id="create-box" style="display:none;margin:14px 0;max-width:640px">
+    <p style="font-size:13px;color:#5A6B7D">
+      Ngjit një email për rresht (deri 200 njëherësh). Fjalëkalimet gjenerohen
+      automatikisht dhe shfaqen pasi të krijohen — kopjoji dhe shpërndaji
+      studentëve, s'i ruajmë ne diku tjetër pas kësaj.
+    </p>
+    <textarea id="create-emails" rows="6" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;font-family:monospace;font-size:13px"
+      placeholder="student1@example.com&#10;student2@example.com&#10;student3@example.com"></textarea>
+    <div style="margin-top:8px;display:flex;gap:10px;align-items:center">
+      <label style="font-size:13px">Roli:
+        <select id="create-role" style="padding:5px 8px;border:1px solid var(--line);border-radius:4px">
+          <option value="student">Student</option>
+          <option value="admin">Administrator</option>
+        </select>
+      </label>
+      <button class="btn-primary" id="create-submit-btn" style="width:auto;padding:8px 18px">Krijo</button>
+      <button class="btn-ghost" id="create-cancel-btn" style="color:var(--navy);border-color:var(--line)">Anulo</button>
+    </div>
+    <div id="create-status" style="font-size:13px;margin-top:8px"></div>
+    <div id="create-results" style="display:none;margin-top:12px">
+      <table class="admin-table">
+        <thead><tr><th>Email</th><th>Statusi</th><th>Fjalëkalimi</th></tr></thead>
+        <tbody id="create-results-tbody"></tbody>
+      </table>
+      <button class="btn-ghost" id="copy-results-btn" style="color:var(--navy);border-color:var(--line);margin-top:8px">Kopjo listën</button>
+    </div>
+  </div>
+
   <div id="loading">Duke ngarkuar…</div>
   <table class="admin-table" id="users-table" style="display:none">
     <thead><tr><th>Email</th><th>Roli</th><th>U regjistrua</th><th></th></tr></thead>
@@ -137,6 +169,63 @@ async function load() {
 
 load().catch(function (err) {
   document.getElementById('loading').textContent = 'Gabim: ' + err.message;
+});
+
+document.getElementById('show-create-btn').addEventListener('click', function () {
+  document.getElementById('create-box').style.display = 'block';
+});
+document.getElementById('create-cancel-btn').addEventListener('click', function () {
+  document.getElementById('create-box').style.display = 'none';
+  document.getElementById('create-status').textContent = '';
+  document.getElementById('create-results').style.display = 'none';
+});
+
+var lastResultsText = '';
+
+document.getElementById('create-submit-btn').addEventListener('click', async function () {
+  var btn = this;
+  var status = document.getElementById('create-status');
+  var raw = document.getElementById('create-emails').value;
+  var emails = raw.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+  if (!emails.length) { status.textContent = 'Shto të paktën një email.'; return; }
+  var role = document.getElementById('create-role').value;
+  btn.disabled = true;
+  status.textContent = 'Duke krijuar ' + emails.length + ' llogari…';
+  try {
+    var data = await postJSON('/api/admin-create-users', {
+      role: role,
+      users: emails.map(function (e) { return { email: e }; }),
+    });
+    var tbody = document.getElementById('create-results-tbody');
+    tbody.innerHTML = '';
+    var lines = [];
+    data.results.forEach(function (r) {
+      var statusLabel = r.status === 'created' ? 'U krijua' : r.status === 'exists' ? 'Ekziston tashmë' : 'Email i pavlefshëm';
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + esc(r.email) + '</td><td>' + statusLabel + '</td><td>' + (r.password ? '<code>' + esc(r.password) + '</code>' : '—') + '</td>';
+      tbody.appendChild(tr);
+      if (r.status === 'created') lines.push(r.email + '\t' + r.password);
+    });
+    lastResultsText = lines.join('\n');
+    document.getElementById('create-results').style.display = 'block';
+    var createdCount = data.results.filter(function (r) { return r.status === 'created'; }).length;
+    status.textContent = '✓ U krijuan ' + createdCount + ' nga ' + data.results.length + '.';
+    await load();
+  } catch (err) {
+    status.textContent = 'Gabim: ' + err.message;
+  }
+  btn.disabled = false;
+});
+
+document.getElementById('copy-results-btn').addEventListener('click', async function () {
+  try {
+    await navigator.clipboard.writeText(lastResultsText);
+    this.textContent = 'U kopjua ✓';
+    var self = this;
+    setTimeout(function () { self.textContent = 'Kopjo listën'; }, 1500);
+  } catch (e) {
+    alert('S\'u kopjua automatikisht — përzgjidhe tekstin dhe kopjoje dorazi:\n\n' + lastResultsText);
+  }
 });
 </script>
 </body>
