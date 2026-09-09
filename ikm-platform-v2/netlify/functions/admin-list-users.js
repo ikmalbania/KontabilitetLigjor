@@ -19,6 +19,7 @@ exports.handler = async (event) => {
       email: record.email,
       role: record.role || 'student',
       createdAt: record.createdAt || null,
+      courses: record.courses || null, // null = unrestricted (sees every course)
       // passwordHash intentionally omitted - never sent to the client.
     });
   }

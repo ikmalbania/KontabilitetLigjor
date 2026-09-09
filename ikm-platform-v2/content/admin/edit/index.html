@@ -46,6 +46,21 @@
       </select>
       <button class="btn-ghost" id="add-block-btn" style="color:var(--navy);border-color:var(--line)">+ Shto</button>
       <button class="btn-ghost" id="show-import-btn" style="color:var(--navy);border-color:var(--line)">Importo nga JSON…</button>
+      <button class="btn-ghost" id="show-docx-import-btn" style="color:var(--navy);border-color:var(--line)">Importo nga Word (.docx)…</button>
+    </div>
+
+    <div id="docx-import-box" style="display:none;margin:14px 0">
+      <p style="font-size:13px;color:#5A6B7D">
+        Ngarko një skedar .docx — do të lexohet direkt në shfletues (asnjë
+        skedar nuk ngarkohet në server) dhe do të shndërrohet në blloqe,
+        gati për të zëvendësuar përmbajtjen aktuale të editorit më poshtë
+        (jo faqen live, derisa të klikosh "Ruaj"). Titujt duhet të kenë
+        stilet "Heading 1"–"Heading 4" të Word-it që të njihen si titull.
+      </p>
+      <input type="file" id="docx-file-input" accept=".docx">
+      <button class="btn-primary" id="apply-docx-import-btn" style="width:auto;padding:8px 18px;margin-left:8px">Shndërro dhe Ngarko</button>
+      <button class="btn-ghost" id="cancel-docx-import-btn" style="color:var(--navy);border-color:var(--line)">Anulo</button>
+      <div id="docx-import-status" style="font-size:13px;margin-top:6px"></div>
     </div>
 
     <div id="import-box" style="display:none;margin:14px 0">
@@ -76,6 +91,8 @@
   </div>
 </div>
 <script src="/js/auth-gate.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="/js/docx-parser.js"></script>
 <script>
 var params = new URLSearchParams(window.location.search);
 var course = params.get('course');
@@ -182,8 +199,43 @@ function moveBlock(i, dir) {
   renderBlocks();
 }
 
+document.getElementById('show-docx-import-btn').addEventListener('click', function () {
+  document.getElementById('docx-import-box').style.display = 'block';
+});
+document.getElementById('cancel-docx-import-btn').addEventListener('click', function () {
+  document.getElementById('docx-import-box').style.display = 'none';
+  document.getElementById('docx-import-status').textContent = '';
+});
+document.getElementById('apply-docx-import-btn').addEventListener('click', async function () {
+  var status = document.getElementById('docx-import-status');
+  var fileInput = document.getElementById('docx-file-input');
+  var file = fileInput.files[0];
+  if (!file) { status.textContent = 'Zgjidh një skedar .docx më parë.'; return; }
+  if (blocks.length && !confirm('Kjo do të zëvendësojë ' + blocks.length + ' blloqet aktuale në editor me përmbajtjen e re nga Word. Vazhdo?')) {
+    return;
+  }
+  this.disabled = true;
+  status.textContent = 'Duke lexuar skedarin…';
+  try {
+    var result = await parseDocxFile(file);
+    if (!result.blocks.length) {
+      status.textContent = 'Nuk u gjet asnjë përmbajtje e njohur në këtë skedar.';
+      this.disabled = false;
+      return;
+    }
+    blocks = result.blocks;
+    renderBlocks();
+    document.getElementById('docx-import-box').style.display = 'none';
+    fileInput.value = '';
+    status.textContent = '';
+    alert('U ngarkuan ' + result.blocks.length + ' blloqe nga Word. Rishikoji më poshtë, pastaj kliko "Ruaj Ndryshimet".');
+  } catch (err) {
+    status.textContent = 'Gabim: ' + err.message;
+  }
+  this.disabled = false;
+});
+
 document.getElementById('add-block-btn').addEventListener('click', function () {
-  var type = document.getElementById('add-block-type').value;
   var newBlock = type === 'heading' ? { type: 'heading', level: 2, text: '' } : { type: type, text: '' };
   blocks.push(newBlock);
   renderBlocks();

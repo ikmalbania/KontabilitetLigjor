@@ -107,6 +107,22 @@ async function getRegistry(courseSlug) {
   return { ...course, availableSet };
 }
 
+// Same rule as _admin_auth.js's hasCourseAccess on the Functions side -
+// kept in sync manually since edge functions (Deno) and Functions
+// (Node/CommonJS) can't share a module here. Admins always pass; an
+// account with no `courses` field (every account created before this
+// feature existed) is treated as unrestricted; only an explicit
+// `courses` array actually limits access.
+async function hasCourseAccess(session, courseSlug) {
+  if (session.role === 'admin') return true;
+  const usersStore = getStore('ikm-users');
+  const record = await usersStore.get(session.email, { type: 'json' });
+  if (!record || !Array.isArray(record.courses)) return true;
+  return record.courses.includes(courseSlug);
+}
+
+const COURSE_SLUG_RE = /^\/course\/([a-z0-9-]+)(\/|$)/;
+
 export default async (request, context) => {
   const secret = Netlify.env.get('AUTH_SECRET');
   if (!secret) {
@@ -127,6 +143,18 @@ export default async (request, context) => {
   }
 
   if (url.pathname.startsWith('/course/')) {
+    const slugMatch = url.pathname.match(COURSE_SLUG_RE);
+    if (slugMatch) {
+      const courseSlug = slugMatch[1];
+      try {
+        if (!(await hasCourseAccess(session, courseSlug))) {
+          return Response.redirect(new URL('/course/?forbidden=1', url.origin), 302);
+        }
+      } catch (e) {
+        console.error('Course access check failed:', e);
+        return new Response('Gabim gjatë verifikimit të aksesit.', { status: 500 });
+      }
+    }
     try {
       const rendered = await tryDynamicRender(url.pathname);
       if (rendered) return rendered;

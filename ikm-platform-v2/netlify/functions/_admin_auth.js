@@ -73,3 +73,21 @@ module.exports.countAdmins = async function countAdmins(store) {
   }
   return count;
 };
+
+// Whether the given session may access a given course slug. Admins
+// always can. A student account with no `courses` field set (i.e.
+// every account created before this feature existed) is treated as
+// unrestricted, same as before - only an account with an explicit
+// `courses` array is actually limited to it. Used by any Function that
+// serves course-scoped data outside the edge function's own path-based
+// check (slide images and the slide file list are fetched via /api/*,
+// not /course/*, so they need this same check independently).
+module.exports.hasCourseAccess = async function hasCourseAccess(session, courseSlug) {
+  if (!session) return false;
+  if (session.role === 'admin') return true;
+  const { getStore } = require('@netlify/blobs');
+  const store = getStore('ikm-users');
+  const record = await store.get(session.email, { type: 'json' });
+  if (!record || !Array.isArray(record.courses)) return true;
+  return record.courses.includes(courseSlug);
+};
