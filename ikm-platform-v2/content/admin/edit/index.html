@@ -46,14 +46,32 @@
       </select>
       <button class="btn-ghost" id="add-block-btn" style="color:var(--navy);border-color:var(--line)">+ Shto</button>
       <button class="btn-ghost" id="show-import-btn" style="color:var(--navy);border-color:var(--line)">Importo nga JSON…</button>
+      <button class="btn-ghost" id="show-docx-import-btn" style="color:var(--navy);border-color:var(--line)">Importo nga Word (.docx)…</button>
+    </div>
+
+    <div id="docx-import-box" style="display:none;margin:14px 0">
+      <p style="font-size:13px;color:#5A6B7D">
+        Ngarko një skedar .docx — do të lexohet direkt në shfletues (asnjë
+        skedar nuk ngarkohet në server) dhe do të shndërrohet në blloqe,
+        gati për të zëvendësuar përmbajtjen aktuale të editorit më poshtë
+        (jo faqen live, derisa të klikosh "Ruaj"). Titujt duhet të kenë
+        stilet "Heading 1"–"Heading 4" të Word-it që të njihen si titull.
+      </p>
+      <input type="file" id="docx-file-input" accept=".docx">
+      <button class="btn-primary" id="apply-docx-import-btn" style="width:auto;padding:8px 18px;margin-left:8px">Shndërro dhe Ngarko</button>
+      <button class="btn-ghost" id="cancel-docx-import-btn" style="color:var(--navy);border-color:var(--line)">Anulo</button>
+      <div id="docx-import-status" style="font-size:13px;margin-top:6px"></div>
     </div>
 
     <div id="import-box" style="display:none;margin:14px 0">
       <p style="font-size:13px;color:#5A6B7D">
-        Ngjit këtu JSON-in e blloqeve (p.sh. atë që Claude e përgatit nga një
-        dokument Word) — do të zëvendësojë krejt përmbajtjen aktuale të
-        editorit më poshtë (jo faqen live, derisa të klikosh "Ruaj").
+        Ngarko një skedar .json (p.sh. atë që Claude e përgatit nga një
+        dokument Word), ose ngjite direkt më poshtë — do të zëvendësojë
+        krejt përmbajtjen aktuale të editorit më poshtë (jo faqen live,
+        derisa të klikosh "Ruaj").
       </p>
+      <input type="file" id="import-file-input" accept=".json,application/json">
+      <p style="font-size:12px;color:#8A97A6;margin:10px 0 4px">— ose ngjit direkt —</p>
       <textarea id="import-textarea" rows="6" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;font-family:monospace;font-size:12.5px"
         placeholder='[{"type":"heading","level":1,"text":"Hyrje e Modulit"},{"type":"para","text":"..."}]'></textarea>
       <div style="margin-top:8px">
@@ -76,6 +94,8 @@
   </div>
 </div>
 <script src="/js/auth-gate.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="/js/docx-parser.js"></script>
 <script>
 var params = new URLSearchParams(window.location.search);
 var course = params.get('course');
@@ -182,8 +202,43 @@ function moveBlock(i, dir) {
   renderBlocks();
 }
 
+document.getElementById('show-docx-import-btn').addEventListener('click', function () {
+  document.getElementById('docx-import-box').style.display = 'block';
+});
+document.getElementById('cancel-docx-import-btn').addEventListener('click', function () {
+  document.getElementById('docx-import-box').style.display = 'none';
+  document.getElementById('docx-import-status').textContent = '';
+});
+document.getElementById('apply-docx-import-btn').addEventListener('click', async function () {
+  var status = document.getElementById('docx-import-status');
+  var fileInput = document.getElementById('docx-file-input');
+  var file = fileInput.files[0];
+  if (!file) { status.textContent = 'Zgjidh një skedar .docx më parë.'; return; }
+  if (blocks.length && !confirm('Kjo do të zëvendësojë ' + blocks.length + ' blloqet aktuale në editor me përmbajtjen e re nga Word. Vazhdo?')) {
+    return;
+  }
+  this.disabled = true;
+  status.textContent = 'Duke lexuar skedarin…';
+  try {
+    var result = await parseDocxFile(file);
+    if (!result.blocks.length) {
+      status.textContent = 'Nuk u gjet asnjë përmbajtje e njohur në këtë skedar.';
+      this.disabled = false;
+      return;
+    }
+    blocks = result.blocks;
+    renderBlocks();
+    document.getElementById('docx-import-box').style.display = 'none';
+    fileInput.value = '';
+    status.textContent = '';
+    alert('U ngarkuan ' + result.blocks.length + ' blloqe nga Word. Rishikoji më poshtë, pastaj kliko "Ruaj Ndryshimet".');
+  } catch (err) {
+    status.textContent = 'Gabim: ' + err.message;
+  }
+  this.disabled = false;
+});
+
 document.getElementById('add-block-btn').addEventListener('click', function () {
-  var type = document.getElementById('add-block-type').value;
   var newBlock = type === 'heading' ? { type: 'heading', level: 2, text: '' } : { type: type, text: '' };
   blocks.push(newBlock);
   renderBlocks();
@@ -196,10 +251,9 @@ document.getElementById('cancel-import-btn').addEventListener('click', function 
   document.getElementById('import-box').style.display = 'none';
   document.getElementById('import-status').textContent = '';
 });
-document.getElementById('apply-import-btn').addEventListener('click', function () {
-  var status = document.getElementById('import-status');
-  var raw = document.getElementById('import-textarea').value.trim();
-  if (!raw) { status.textContent = 'Ngjit JSON-in më parë.'; return; }
+function applyImportedJson(raw, status) {
+  raw = raw.trim();
+  if (!raw) { status.textContent = 'Skedari/teksti është bosh.'; return; }
   var parsed;
   try {
     parsed = JSON.parse(raw);
@@ -207,6 +261,29 @@ document.getElementById('apply-import-btn').addEventListener('click', function (
     status.textContent = 'JSON i pavlefshëm: ' + e.message;
     return;
   }
+
+  // Files like the ones Claude prepares sometimes bundle several named
+  // sections in one JSON object (e.g. {"preface": [...], "glossary": [...]})
+  // rather than a single array - let the admin pick which one instead of
+  // just failing.
+  if (parsed && !Array.isArray(parsed) && typeof parsed === 'object') {
+    var arrayKeys = Object.keys(parsed).filter(function (k) { return Array.isArray(parsed[k]); });
+    if (!arrayKeys.length) {
+      status.textContent = 'Ky JSON s\'ka asnjë listë blloqesh brenda.';
+      return;
+    }
+    var choice = arrayKeys.length === 1 ? arrayKeys[0] : prompt(
+      'Ky skedar ka disa seksione. Cilin do të ngarkosh?\n\n' + arrayKeys.join('\n'),
+      arrayKeys[0]
+    );
+    if (!choice) return;
+    if (arrayKeys.indexOf(choice) === -1) {
+      status.textContent = 'Seksioni "' + choice + '" nuk u gjet. Provo përsëri.';
+      return;
+    }
+    parsed = parsed[choice];
+  }
+
   if (!Array.isArray(parsed)) {
     status.textContent = 'JSON duhet të jetë një listë blloqesh (array), p.sh. [{"type":"para","text":"..."}].';
     return;
@@ -218,14 +295,28 @@ document.getElementById('apply-import-btn').addEventListener('click', function (
       return;
     }
   }
-  if (blocks.length && !confirm('Kjo do të zëvendësojë ' + blocks.length + ' blloqet aktuale në editor me ' + parsed.length + ' blloqe të reja nga JSON-i. Vazhdo?')) {
+  if (blocks.length && !confirm('Kjo do të zëvendësojë ' + blocks.length + ' blloqet aktuale në editor me ' + parsed.length + ' blloqe të reja. Vazhdo?')) {
     return;
   }
   blocks = parsed;
   renderBlocks();
   document.getElementById('import-box').style.display = 'none';
   document.getElementById('import-textarea').value = '';
+  document.getElementById('import-file-input').value = '';
   status.textContent = '';
+}
+
+document.getElementById('apply-import-btn').addEventListener('click', function () {
+  var status = document.getElementById('import-status');
+  var fileInput = document.getElementById('import-file-input');
+  if (fileInput.files[0]) {
+    var reader = new FileReader();
+    reader.onload = function () { applyImportedJson(reader.result, status); };
+    reader.onerror = function () { status.textContent = 'Gabim gjatë leximit të skedarit.'; };
+    reader.readAsText(fileInput.files[0]);
+    return;
+  }
+  applyImportedJson(document.getElementById('import-textarea').value, status);
 });
 
 document.getElementById('save-btn').addEventListener('click', async function () {
@@ -249,7 +340,7 @@ document.getElementById('save-btn').addEventListener('click', async function () 
 (async function () {
   try {
     var data = await getJSON('/api/admin-get-module?course=' + encodeURIComponent(course) + '&modnum=' + encodeURIComponent(modnum));
-    document.getElementById('page-title').textContent = 'Edito Modulin ' + modnum;
+    document.getElementById('page-title').textContent = modnum === '_description' ? 'Edito Përshkrimin e Kursit' : 'Edito Modulin ' + modnum;
     document.getElementById('title-input').value = data.title;
     blocks = data.blocks;
     renderBlocks();

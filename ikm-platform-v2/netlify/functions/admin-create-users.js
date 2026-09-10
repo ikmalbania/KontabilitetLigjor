@@ -32,6 +32,7 @@ exports.handler = async (event) => {
   }
 
   const role = body.role === 'admin' ? 'admin' : 'student';
+  const courses = Array.isArray(body.courses) && body.courses.length ? body.courses.map(String) : null;
   const entries = Array.isArray(body.users) ? body.users : [];
   if (!entries.length) return json(400, { error: 'Nuk ka email të dhëna.' });
   if (entries.length > 200) return json(400, { error: 'Maksimumi 200 përdorues në një herë.' });
@@ -58,6 +59,7 @@ exports.handler = async (event) => {
       role,
       createdAt: new Date().toISOString(),
     };
+    if (courses) record.courses = courses;
     await store.setJSON(email, record);
     results.push({ email, status: 'created', password });
   }

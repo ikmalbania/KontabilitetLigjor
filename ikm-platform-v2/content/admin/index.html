@@ -34,6 +34,18 @@
   </div>
 
   <div id="courses-container">Duke ngarkuar…</div>
+
+  <div class="admin-toolbar">
+    <button class="btn-ghost" id="show-create-course-btn" style="color:var(--navy);border-color:var(--line)">+ Krijo Kurs të Ri</button>
+  </div>
+  <div id="create-course-box" style="display:none;max-width:520px;margin:12px 0">
+    <input type="text" id="new-course-name" placeholder="Emri i kursit (p.sh. Auditimi i Brendshëm)"
+      style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;margin-bottom:8px">
+    <input type="text" id="new-course-slug" placeholder="slug (p.sh. auditimi-i-brendshem — vetëm shkronja/numra/vizë)"
+      style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;margin-bottom:8px;font-family:monospace">
+    <button class="btn-primary" id="create-course-btn" style="width:auto;padding:8px 18px">Krijo Kursin</button>
+    <span id="create-course-status" style="font-size:13px;margin-left:8px"></span>
+  </div>
 </div>
 <script src="/js/auth-gate.js"></script>
 <script>
@@ -86,7 +98,7 @@ async function load() {
     block.className = 'admin-course-block';
     var rows = course.modules.map(function (m) {
       return '<tr>' +
-        '<td>Moduli ' + esc(m.num) + '</td>' +
+        '<td>' + (m.isReference ? '<em>Material Referues</em>' : ('Moduli ' + esc(m.num))) + '</td>' +
         '<td>' + esc(m.label) + '</td>' +
         '<td class="' + (m.hasContent ? 'admin-status-yes' : 'admin-status-no') + '">' +
           (m.hasContent ? (m.blockCount + ' blloqe') : 'Pa përmbajtje') + '</td>' +
@@ -99,11 +111,68 @@ async function load() {
     }).join('');
     block.innerHTML =
       '<h2>' + esc(course.name) + '</h2>' +
+      '<div style="margin-bottom:8px"><a class="admin-action" href="/admin/edit/?course=' + encodeURIComponent(course.slug) + '&modnum=_description">Edito Përshkrimin e Kursit</a>' +
+        ' <span style="color:#8A97A6;font-size:12px">(shfaqet para moduleve, kur studenti klikon te kursi)</span></div>' +
       '<table class="admin-table"><thead><tr><th>Moduli</th><th>Titulli</th><th>Përmbajtja</th><th>Prezantimi</th><th></th></tr></thead>' +
-      '<tbody>' + rows + '</tbody></table>';
+      '<tbody>' + rows + '</tbody></table>' +
+      '<div style="margin-top:10px">' +
+        '<button class="btn-ghost add-module-btn" data-slug="' + esc(course.slug) + '" style="color:var(--navy);border-color:var(--line);font-size:13px;padding:5px 12px">+ Shto Modul</button> ' +
+        '<button class="btn-ghost add-reference-btn" data-slug="' + esc(course.slug) + '" style="color:var(--navy);border-color:var(--line);font-size:13px;padding:5px 12px">+ Shto Material Referues</button>' +
+        '<span class="add-module-status" style="font-size:13px;margin-left:8px"></span>' +
+      '</div>';
     container.appendChild(block);
   });
+
+  document.querySelectorAll('.add-module-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var slug = btn.getAttribute('data-slug');
+      var num = prompt('Numri i modulit (p.sh. 11):');
+      if (!num) return;
+      var label = prompt('Titulli i shkurtër i modulit (shfaqet te menyja majtas):');
+      if (!label) return;
+      var statusEl = btn.parentElement.querySelector('.add-module-status');
+      postJSON('/api/admin-add-module', { course: slug, num: num, label: label })
+        .then(function () { return load(); })
+        .catch(function (err) { statusEl.textContent = 'Gabim: ' + err.message; });
+    });
+  });
+
+  document.querySelectorAll('.add-reference-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var slug = btn.getAttribute('data-slug');
+      var key = prompt('Identifikuesi i shkurtër (p.sh. "fjalori", "kuadri-ligjor", "bibliografia") — vetëm shkronja të vogla, numra, vizë:');
+      if (!key) return;
+      var label = prompt('Titulli i shfaqur në meny (p.sh. "Fjalori i Termave"):');
+      if (!label) return;
+      var statusEl = btn.parentElement.querySelector('.add-module-status');
+      postJSON('/api/admin-add-module', { course: slug, num: key, label: label, isReference: true })
+        .then(function () { return load(); })
+        .catch(function (err) { statusEl.textContent = 'Gabim: ' + err.message; });
+    });
+  });
 }
+
+document.getElementById('show-create-course-btn').addEventListener('click', function () {
+  var box = document.getElementById('create-course-box');
+  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+});
+document.getElementById('create-course-btn').addEventListener('click', async function () {
+  var status = document.getElementById('create-course-status');
+  var name = document.getElementById('new-course-name').value.trim();
+  var slug = document.getElementById('new-course-slug').value.trim();
+  if (!name || !slug) { status.textContent = 'Plotëso emrin dhe slug-un.'; return; }
+  this.disabled = true;
+  try {
+    await postJSON('/api/admin-create-course', { name: name, slug: slug });
+    status.textContent = '✓ U krijua.';
+    document.getElementById('new-course-name').value = '';
+    document.getElementById('new-course-slug').value = '';
+    await load();
+  } catch (err) {
+    status.textContent = 'Gabim: ' + err.message;
+  }
+  this.disabled = false;
+});
 
 document.getElementById('seed-btn').addEventListener('click', async function () {
   var btn = this;

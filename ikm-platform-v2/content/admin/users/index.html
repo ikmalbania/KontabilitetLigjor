@@ -37,13 +37,16 @@
     </p>
     <textarea id="create-emails" rows="6" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;font-family:monospace;font-size:13px"
       placeholder="student1@example.com&#10;student2@example.com&#10;student3@example.com"></textarea>
-    <div style="margin-top:8px;display:flex;gap:10px;align-items:center">
+    <div style="margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <label style="font-size:13px">Roli:
         <select id="create-role" style="padding:5px 8px;border:1px solid var(--line);border-radius:4px">
           <option value="student">Student</option>
           <option value="admin">Administrator</option>
         </select>
       </label>
+      <span style="font-size:13px">Kurset: <span id="create-courses-checks" style="display:inline"></span>
+        <span style="color:#5A6B7D">(pa asnjë zgjedhur = akses në të gjitha, edhe kurset e ardhshme)</span>
+      </span>
       <button class="btn-primary" id="create-submit-btn" style="width:auto;padding:8px 18px">Krijo</button>
       <button class="btn-ghost" id="create-cancel-btn" style="color:var(--navy);border-color:var(--line)">Anulo</button>
     </div>
@@ -59,7 +62,7 @@
 
   <div id="loading">Duke ngarkuar…</div>
   <table class="admin-table" id="users-table" style="display:none">
-    <thead><tr><th>Email</th><th>Roli</th><th>U regjistrua</th><th></th></tr></thead>
+    <thead><tr><th>Email</th><th>Roli</th><th>U regjistrua</th><th>Kurset</th><th></th></tr></thead>
     <tbody id="users-tbody"></tbody>
   </table>
 </div>
@@ -94,6 +97,28 @@ function fmtDate(iso) {
   try { return new Date(iso).toLocaleDateString('sq-AL'); } catch (e) { return iso; }
 }
 
+var availableCourses = [];
+
+async function loadAvailableCourses() {
+  try {
+    var data = await getJSON('/api/list-courses');
+    availableCourses = data.courses || [];
+  } catch (e) {
+    availableCourses = [];
+  }
+  var box = document.getElementById('create-courses-checks');
+  box.innerHTML = availableCourses.map(function (c) {
+    return '<label style="margin-right:10px"><input type="checkbox" class="create-course-check" value="' + esc(c.slug) + '"> ' + esc(c.name) + '</label>';
+  }).join('') || '<span style="color:#5A6B7D">(nuk ka kurse ende)</span>';
+}
+
+function courseNamesFor(slugs) {
+  return slugs.map(function (slug) {
+    var c = availableCourses.find(function (x) { return x.slug === slug; });
+    return c ? c.name : slug;
+  }).join(', ');
+}
+
 async function load() {
   var data = await getJSON('/api/admin-list-users');
   var tbody = document.getElementById('users-tbody');
@@ -105,10 +130,14 @@ async function load() {
       ? '<strong style="color:var(--navy)">Administrator</strong>'
       : 'Student') + '</td>';
 
+    var coursesLabel = u.role === 'admin' ? 'Të gjitha (admin)'
+      : (u.courses === null ? 'Të gjitha' : (u.courses.length ? courseNamesFor(u.courses) : 'Asnjë'));
+
     tr.innerHTML =
       '<td>' + esc(u.email) + '</td>' +
       roleCell +
       '<td>' + fmtDate(u.createdAt) + '</td>' +
+      '<td>' + esc(coursesLabel) + '</td>' +
       '<td></td>';
 
     var actionsTd = tr.querySelector('td:last-child');
@@ -123,6 +152,28 @@ async function load() {
       if (!confirm('Ndrysho rolin e ' + u.email + ' në "' + newRole + '"?')) return;
       try {
         await postJSON('/api/admin-set-role', { email: u.email, role: newRole });
+        await load();
+      } catch (err) { alert('Gabim: ' + err.message); }
+    });
+
+    var coursesBtn = document.createElement('a');
+    coursesBtn.className = 'admin-action';
+    coursesBtn.href = '#';
+    coursesBtn.textContent = 'Ndrysho kurset';
+    coursesBtn.addEventListener('click', async function (e) {
+      e.preventDefault();
+      if (u.role === 'admin') { alert('Administratorët kanë gjithmonë akses në gjithçka.'); return; }
+      var slugList = availableCourses.map(function (c) { return c.slug + ' — ' + c.name; }).join('\n');
+      var current = u.courses === null ? '' : u.courses.join(',');
+      var input = prompt(
+        'Shkruaj slug-jet e kurseve (ndarë me presje) që ' + u.email + ' duhet të shohë.\n' +
+        'Lëre bosh për akses në TË GJITHA kurset (edhe ato të ardhshme).\n\nKurset e disponueshme:\n' + slugList,
+        current
+      );
+      if (input === null) return;
+      var slugs = input.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      try {
+        await postJSON('/api/admin-set-user-courses', { email: u.email, courses: slugs.length ? slugs : null });
         await load();
       } catch (err) { alert('Gabim: ' + err.message); }
     });
@@ -157,6 +208,8 @@ async function load() {
 
     actionsTd.appendChild(toggleBtn);
     actionsTd.appendChild(document.createTextNode(' '));
+    actionsTd.appendChild(coursesBtn);
+    actionsTd.appendChild(document.createTextNode(' '));
     actionsTd.appendChild(resetBtn);
     actionsTd.appendChild(document.createTextNode(' '));
     actionsTd.appendChild(delBtn);
@@ -167,9 +220,14 @@ async function load() {
   document.getElementById('users-table').style.display = 'table';
 }
 
-load().catch(function (err) {
-  document.getElementById('loading').textContent = 'Gabim: ' + err.message;
-});
+(async function () {
+  await loadAvailableCourses();
+  try {
+    await load();
+  } catch (err) {
+    document.getElementById('loading').textContent = 'Gabim: ' + err.message;
+  }
+})();
 
 document.getElementById('show-create-btn').addEventListener('click', function () {
   document.getElementById('create-box').style.display = 'block';
@@ -189,11 +247,13 @@ document.getElementById('create-submit-btn').addEventListener('click', async fun
   var emails = raw.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
   if (!emails.length) { status.textContent = 'Shto të paktën një email.'; return; }
   var role = document.getElementById('create-role').value;
+  var selectedCourses = Array.prototype.slice.call(document.querySelectorAll('.create-course-check:checked')).map(function (el) { return el.value; });
   btn.disabled = true;
   status.textContent = 'Duke krijuar ' + emails.length + ' llogari…';
   try {
     var data = await postJSON('/api/admin-create-users', {
       role: role,
+      courses: selectedCourses.length ? selectedCourses : null,
       users: emails.map(function (e) { return { email: e }; }),
     });
     var tbody = document.getElementById('create-results-tbody');

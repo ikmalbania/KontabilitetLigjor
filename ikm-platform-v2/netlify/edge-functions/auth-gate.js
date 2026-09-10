@@ -11,7 +11,7 @@
 //      as a safety net during the transition.
 
 import { getStore } from '@netlify/blobs';
-import { renderModulePage, renderSlidesViewerPage } from './lib/_render.js';
+import { renderModulePage, renderSlidesViewerPage, renderCourseLandingPage } from './lib/_render.js';
 
 async function verifySession(token, secret) {
   if (!token || token.indexOf('.') === -1) return null;
@@ -52,8 +52,13 @@ function readCookie(request, name) {
   return null;
 }
 
-const MODULE_RE = /^\/course\/([a-z0-9-]+)\/modul-(\d+)\/?$/;
-const SLIDES_RE = /^\/course\/([a-z0-9-]+)\/modul-(\d+)\/slides\/?$/;
+// modnum is [a-z0-9-]+, not just digits, so reference pages (glossary,
+// legal framework, bibliography - added via admin-add-module.js with
+// isReference: true) resolve through the exact same routes as numbered
+// modules.
+const MODULE_RE = /^\/course\/([a-z0-9-]+)\/modul-([a-z0-9-]+)\/?$/;
+const SLIDES_RE = /^\/course\/([a-z0-9-]+)\/modul-([a-z0-9-]+)\/slides\/?$/;
+const LANDING_RE = /^\/course\/([a-z0-9-]+)\/?$/;
 
 async function tryDynamicRender(pathname) {
   let m = pathname.match(MODULE_RE);
@@ -89,6 +94,21 @@ async function tryDynamicRender(pathname) {
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   }
 
+  m = pathname.match(LANDING_RE);
+  if (m) {
+    const [, courseSlug] = m;
+    const registry = await getRegistry(courseSlug);
+    if (!registry) return null; // unknown course - fall through to static/404 (e.g. /course/ itself)
+    const contentStore = getStore('ikm-content');
+    const descContent = await contentStore.get(`${courseSlug}/modul-_description`, { type: 'json' });
+    const html = renderCourseLandingPage({
+      courseSlug,
+      courseRegistry: registry,
+      descriptionBlocks: descContent ? descContent.blocks : [],
+    });
+    return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  }
+
   return null;
 }
 
@@ -106,6 +126,22 @@ async function getRegistry(courseSlug) {
 
   return { ...course, availableSet };
 }
+
+// Same rule as _admin_auth.js's hasCourseAccess on the Functions side -
+// kept in sync manually since edge functions (Deno) and Functions
+// (Node/CommonJS) can't share a module here. Admins always pass; an
+// account with no `courses` field (every account created before this
+// feature existed) is treated as unrestricted; only an explicit
+// `courses` array actually limits access.
+async function hasCourseAccess(session, courseSlug) {
+  if (session.role === 'admin') return true;
+  const usersStore = getStore('ikm-users');
+  const record = await usersStore.get(session.email, { type: 'json' });
+  if (!record || !Array.isArray(record.courses)) return true;
+  return record.courses.includes(courseSlug);
+}
+
+const COURSE_SLUG_RE = /^\/course\/([a-z0-9-]+)(\/|$)/;
 
 export default async (request, context) => {
   const secret = Netlify.env.get('AUTH_SECRET');
@@ -127,6 +163,18 @@ export default async (request, context) => {
   }
 
   if (url.pathname.startsWith('/course/')) {
+    const slugMatch = url.pathname.match(COURSE_SLUG_RE);
+    if (slugMatch) {
+      const courseSlug = slugMatch[1];
+      try {
+        if (!(await hasCourseAccess(session, courseSlug))) {
+          return Response.redirect(new URL('/course/?forbidden=1', url.origin), 302);
+        }
+      } catch (e) {
+        console.error('Course access check failed:', e);
+        return new Response('Gabim gjatë verifikimit të aksesit.', { status: 500 });
+      }
+    }
     try {
       const rendered = await tryDynamicRender(url.pathname);
       if (rendered) return rendered;

@@ -126,6 +126,16 @@ a:hover { text-decoration: underline; }
   font-size: 13px;
   font-style: italic;
 }
+.nav-divider {
+  padding: 14px 14px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8A97A6;
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+}
 
 /* ---- Content ---- */
 .module-header { margin-bottom: 28px; border-bottom: 1px solid var(--line); padding-bottom: 18px; }
