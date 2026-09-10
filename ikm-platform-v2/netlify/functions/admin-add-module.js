@@ -18,11 +18,19 @@ exports.handler = async (event) => {
   const course = String(body.course || '').trim();
   const num = String(body.num || '').trim();
   const label = String(body.label || '').trim();
+  const isReference = body.isReference === true;
   if (!course || !num || !label) {
     return json(400, { error: 'Mungon course, num, ose label.' });
   }
-  if (!/^\d+$/.test(num)) {
-    return json(400, { error: 'num duhet të jetë vetëm numra (p.sh. "11").' });
+  // Numbered modules keep the original strict digits-only rule.
+  // Reference pages (glossary, legal framework, bibliography, etc.) use
+  // a short slug instead, since "Moduli glossary" makes no sense as a
+  // number - they're grouped and labeled separately in the nav.
+  const validNum = isReference ? /^[a-z0-9-]+$/.test(num) : /^\d+$/.test(num);
+  if (!validNum) {
+    return json(400, { error: isReference
+      ? 'Identifikuesi i materialit referues duhet të jetë shkronja të vogla/numra/vizë (p.sh. "fjalori").'
+      : 'num duhet të jetë vetëm numra (p.sh. "11").' });
   }
 
   const store = getStore('ikm-courses');
@@ -34,8 +42,12 @@ exports.handler = async (event) => {
     return json(409, { error: 'Ky modul ekziston tashmë në këtë kurs.' });
   }
 
-  registry[course].modules.push({ num, label });
-  registry[course].totalModules = Math.max(registry[course].totalModules || 0, registry[course].modules.length);
+  const entry = { num, label };
+  if (isReference) entry.isReference = true;
+  registry[course].modules.push(entry);
+  if (!isReference) {
+    registry[course].totalModules = Math.max(registry[course].totalModules || 0, registry[course].modules.filter((m) => !m.isReference).length);
+  }
   await store.setJSON('registry', registry);
 
   return json(200, { ok: true });

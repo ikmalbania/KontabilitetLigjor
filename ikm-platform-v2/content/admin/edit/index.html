@@ -301,7 +301,7 @@ document.getElementById('save-btn').addEventListener('click', async function () 
 (async function () {
   try {
     var data = await getJSON('/api/admin-get-module?course=' + encodeURIComponent(course) + '&modnum=' + encodeURIComponent(modnum));
-    document.getElementById('page-title').textContent = 'Edito Modulin ' + modnum;
+    document.getElementById('page-title').textContent = modnum === '_description' ? 'Edito Përshkrimin e Kursit' : 'Edito Modulin ' + modnum;
     document.getElementById('title-input').value = data.title;
     blocks = data.blocks;
     renderBlocks();

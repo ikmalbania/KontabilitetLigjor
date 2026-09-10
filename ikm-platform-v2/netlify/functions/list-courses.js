@@ -26,7 +26,7 @@ exports.handler = async (event) => {
     .map(([slug, course]) => ({
       slug,
       name: course.name,
-      moduleCount: course.modules.length,
+      moduleCount: course.modules.filter((m) => !m.isReference).length,
     }));
 
   return {

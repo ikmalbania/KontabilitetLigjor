@@ -89,17 +89,37 @@ export function tocToHtml(items) {
 }
 
 export function buildNav(courseSlug, activeModnum, courseRegistry) {
-  const items = courseRegistry.modules.map(({ num, label }) => {
+  const numbered = courseRegistry.modules.filter((m) => !m.isReference);
+  const references = courseRegistry.modules.filter((m) => m.isReference);
+
+  const items = [];
+  items.push(
+    `<li class="${!activeModnum ? 'active' : ''}"><a href="/course/${courseSlug}/">← Rreth Kursit</a></li>`
+  );
+
+  for (const { num, label } of numbered) {
     const cls = num === activeModnum ? 'active' : '';
     const available = courseRegistry.availableSet.has(num);
     const locked = available ? '' : ' <span class="lock">🔒</span>';
     const href = available ? `/course/${courseSlug}/modul-${num}/` : '#';
-    return `<li class="${cls}"><a href="${href}">Moduli ${num}${locked}<br><small>${esc(label)}</small></a></li>`;
-  });
-  const remaining = (courseRegistry.totalModules || courseRegistry.modules.length) - courseRegistry.modules.length;
+    items.push(`<li class="${cls}"><a href="${href}">Moduli ${num}${locked}<br><small>${esc(label)}</small></a></li>`);
+  }
+  const remaining = (courseRegistry.totalModules || numbered.length) - numbered.length;
   if (remaining > 0) {
     items.push(`<li class="nav-more">+ ${remaining} module të tjera</li>`);
   }
+
+  if (references.length) {
+    items.push('<li class="nav-divider">Materiale Referuese</li>');
+    for (const { num, label } of references) {
+      const cls = num === activeModnum ? 'active' : '';
+      const available = courseRegistry.availableSet.has(num);
+      const locked = available ? '' : ' <span class="lock">🔒</span>';
+      const href = available ? `/course/${courseSlug}/modul-${num}/` : '#';
+      items.push(`<li class="${cls}"><a href="${href}">${esc(label)}${locked}</a></li>`);
+    }
+  }
+
   return items.join('\n      ');
 }
 
@@ -146,7 +166,7 @@ const PAGE_TEMPLATE = (vars) => `<!DOCTYPE html>
   </nav>
   <main class="content" id="protected-content">
     <div class="module-header">
-      <span class="module-tag">Moduli ${esc(vars.modnum)}</span>
+      <span class="module-tag">${esc(vars.moduleTag)}</span>
       <h1>${esc(vars.titleClean)}</h1>
     </div>
     ${vars.slidesEntry}
@@ -281,6 +301,8 @@ export function renderModulePage({ courseSlug, modnum, moduleContent, courseRegi
   const tocItems = buildSectionToc(moduleContent.blocks);
   const toc = tocToHtml(tocItems);
   const nav = buildNav(courseSlug, modnum, courseRegistry);
+  const moduleEntry = courseRegistry.modules.find((m) => m.num === modnum);
+  const moduleTag = moduleEntry && moduleEntry.isReference ? 'Material Referues' : `Moduli ${modnum}`;
 
   let slidesEntry = '';
   if (slideCount > 0) {
@@ -295,10 +317,67 @@ export function renderModulePage({ courseSlug, modnum, moduleContent, courseRegi
     title: tClean,
     courseName: courseRegistry.name,
     modnum,
+    moduleTag,
     titleClean: tClean,
     nav,
     toc,
     body,
     slidesEntry,
   });
+}
+
+// The course landing page - shown at /course/<slug>/, before diving into
+// any module. Uses the same block schema/rendering as a module page
+// (the course's "description" content, stored via the same admin editor
+// under the reserved modnum "_description"), but no module tag, no TOC
+// rail (descriptions are typically short-ish), and the nav's "active"
+// state highlights "Rreth Kursit" instead of any module.
+export function renderCourseLandingPage({ courseSlug, courseRegistry, descriptionBlocks }) {
+  const nav = buildNav(courseSlug, null, courseRegistry);
+  const body = descriptionBlocks && descriptionBlocks.length
+    ? blocksToHtml(descriptionBlocks)
+    : '<p>Ky kurs nuk ka ende një përshkrim. Zgjidh një modul nga menyja majtas për të filluar.</p>';
+
+  return `<!DOCTYPE html>
+<html lang="sq">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${esc(courseRegistry.name)}</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="watermark"></div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="/course/" class="brand">IKM <span>${esc(courseRegistry.name)}</span></a>
+    <div class="user-info">
+      <span id="user-email"></span>
+      <button id="change-password-btn" class="btn-ghost">Ndrysho fjalëkalimin</button>
+      <button id="logout-btn" class="btn-ghost">Dil</button>
+    </div>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sidebar-title"><a href="/course/">← Të gjitha kurset</a></div>
+    <div class="sidebar-title">${esc(courseRegistry.name)}</div>
+    <ul class="module-nav">
+      ${nav}
+    </ul>
+  </nav>
+  <main class="content" id="protected-content">
+    <div class="module-header">
+      <span class="module-tag">Rreth Kursit</span>
+      <h1>${esc(courseRegistry.name)}</h1>
+    </div>
+    <article class="doc-body">
+      ${body}
+    </article>
+  </main>
+</div>
+<script src="/js/auth-gate.js"></script>
+</body>
+</html>
+`;
 }

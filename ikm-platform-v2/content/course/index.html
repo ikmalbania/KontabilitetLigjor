@@ -50,7 +50,7 @@ fetch('/api/list-courses', { credentials: 'same-origin' })
       grid.innerHTML = '<p>Nuk ke akses në asnjë kurs ende. Kontakto administratorin.</p>';
     } else {
       grid.innerHTML = courses.map(function (c) {
-        return '<a class="course-card" href="/course/' + encodeURIComponent(c.slug) + '/modul-1/">' +
+        return '<a class="course-card" href="/course/' + encodeURIComponent(c.slug) + '/">' +
           '<div class="course-card-tag">Aktiv</div>' +
           '<h2>' + esc(c.name) + '</h2>' +
           '<p>' + c.moduleCount + ' module.</p>' +
