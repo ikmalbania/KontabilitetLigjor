@@ -41,6 +41,12 @@ exports.handler = async (event) => {
   }
 
   const token = createSessionToken(email, record.role);
+
+  // Record last login - fire-and-forget so a slow/failed write never
+  // blocks or breaks the actual login response.
+  record.lastLoginAt = new Date().toISOString();
+  store.setJSON(email, record).catch(() => {});
+
   return {
     statusCode: 200,
     multiValueHeaders: {

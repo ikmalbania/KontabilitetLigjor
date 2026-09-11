@@ -62,7 +62,7 @@
 
   <div id="loading">Duke ngarkuar…</div>
   <table class="admin-table" id="users-table" style="display:none">
-    <thead><tr><th>Email</th><th>Roli</th><th>U regjistrua</th><th>Kurset</th><th></th></tr></thead>
+    <thead><tr><th>Email</th><th>Roli</th><th>U regjistrua</th><th>Login-i i fundit</th><th>Kurset</th><th></th></tr></thead>
     <tbody id="users-tbody"></tbody>
   </table>
 </div>
@@ -95,6 +95,13 @@ async function postJSON(url, data) {
 function fmtDate(iso) {
   if (!iso) return '—';
   try { return new Date(iso).toLocaleDateString('sq-AL'); } catch (e) { return iso; }
+}
+function fmtLastLogin(iso) {
+  if (!iso) return 'Kurrë';
+  try {
+    var d = new Date(iso);
+    return d.toLocaleDateString('sq-AL') + ' ' + d.toLocaleTimeString('sq-AL', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) { return iso; }
 }
 
 var availableCourses = [];
@@ -137,6 +144,7 @@ async function load() {
       '<td>' + esc(u.email) + '</td>' +
       roleCell +
       '<td>' + fmtDate(u.createdAt) + '</td>' +
+      '<td>' + fmtLastLogin(u.lastLoginAt) + '</td>' +
       '<td>' + esc(coursesLabel) + '</td>' +
       '<td></td>';
 

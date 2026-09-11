@@ -71,6 +71,7 @@ exports.handler = async (event) => {
       return json(401, { error: 'Ky email ka tashmë një llogari studenti, por fjalëkalimi i dhënë nuk përputhet me atë llogari.' });
     }
     existing.role = 'admin';
+    existing.lastLoginAt = new Date().toISOString();
     await store.setJSON(email, existing);
 
     const token = createSessionToken(email, 'admin');
@@ -89,6 +90,7 @@ exports.handler = async (event) => {
     passwordHash: hashPassword(password),
     role: 'admin',
     createdAt: new Date().toISOString(),
+    lastLoginAt: new Date().toISOString(),
   };
   await store.setJSON(email, record);
 
