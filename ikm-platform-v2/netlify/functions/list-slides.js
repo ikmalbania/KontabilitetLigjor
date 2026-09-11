@@ -1,11 +1,11 @@
 const { getStore, connectLambda } = require('@netlify/blobs');
-const { requireSession, getSession, hasCourseAccess } = require('./_admin_auth');
+const { requireSession, getSession, hasSlidesAccess } = require('./_admin_auth');
 
 // Used by both the admin slide-manager UI and the student-facing slide
 // viewer - listing filenames isn't sensitive to a student who can already
 // view the images themselves, so this only requires a valid session, not
-// specifically an admin one - but still scoped to courses they're
-// actually entitled to.
+// specifically an admin one - but still scoped to courses/modules they're
+// actually entitled to, and blocked if the module or its slides are hidden.
 exports.handler = async (event) => {
   connectLambda(event);
   if (event.httpMethod !== 'GET') return { statusCode: 405, body: 'Method not allowed' };
@@ -18,8 +18,8 @@ exports.handler = async (event) => {
     return json(400, { error: 'Mungon course ose modnum.' });
   }
 
-  if (!(await hasCourseAccess(getSession(event), course))) {
-    return json(403, { error: 'Nuk ke akses në këtë kurs.' });
+  if (!(await hasSlidesAccess(getSession(event), course, modnum))) {
+    return json(403, { error: 'Nuk ke akses në këto slides.' });
   }
 
   const store = getStore('ikm-slides');

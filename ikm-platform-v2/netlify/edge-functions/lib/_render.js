@@ -88,21 +88,23 @@ export function tocToHtml(items) {
   return `<ul class="toc-tree">${li.join('')}</ul>`;
 }
 
-export function buildNav(courseSlug, activeModnum, courseRegistry) {
-  const numbered = courseRegistry.modules.filter((m) => !m.isReference);
-  const references = courseRegistry.modules.filter((m) => m.isReference);
+export function buildNav(courseSlug, activeModnum, courseRegistry, isAdmin) {
+  const visible = isAdmin ? courseRegistry.modules : courseRegistry.modules.filter((m) => !m.hidden);
+  const numbered = visible.filter((m) => !m.isReference);
+  const references = visible.filter((m) => m.isReference);
 
   const items = [];
   items.push(
     `<li class="${!activeModnum ? 'active' : ''}"><a href="/course/${courseSlug}/">← Rreth Kursit</a></li>`
   );
 
-  for (const { num, label } of numbered) {
+  for (const { num, label, hidden } of numbered) {
     const cls = num === activeModnum ? 'active' : '';
     const available = courseRegistry.availableSet.has(num);
     const locked = available ? '' : ' <span class="lock">🔒</span>';
+    const hiddenTag = hidden ? ' <span class="hidden-tag">e fshehur</span>' : '';
     const href = available ? `/course/${courseSlug}/modul-${num}/` : '#';
-    items.push(`<li class="${cls}"><a href="${href}">Moduli ${num}${locked}<br><small>${esc(label)}</small></a></li>`);
+    items.push(`<li class="${cls}"><a href="${href}">Moduli ${num}${locked}${hiddenTag}<br><small>${esc(label)}</small></a></li>`);
   }
   const remaining = (courseRegistry.totalModules || numbered.length) - numbered.length;
   if (remaining > 0) {
@@ -111,12 +113,13 @@ export function buildNav(courseSlug, activeModnum, courseRegistry) {
 
   if (references.length) {
     items.push('<li class="nav-divider">Materiale Referuese</li>');
-    for (const { num, label } of references) {
+    for (const { num, label, hidden } of references) {
       const cls = num === activeModnum ? 'active' : '';
       const available = courseRegistry.availableSet.has(num);
       const locked = available ? '' : ' <span class="lock">🔒</span>';
+      const hiddenTag = hidden ? ' <span class="hidden-tag">e fshehur</span>' : '';
       const href = available ? `/course/${courseSlug}/modul-${num}/` : '#';
-      items.push(`<li class="${cls}"><a href="${href}">${esc(label)}${locked}</a></li>`);
+      items.push(`<li class="${cls}"><a href="${href}">${esc(label)}${locked}${hiddenTag}</a></li>`);
     }
   }
 
@@ -165,6 +168,7 @@ const PAGE_TEMPLATE = (vars) => `<!DOCTYPE html>
     </ul>
   </nav>
   <main class="content" id="protected-content">
+    ${vars.adminHiddenBanner}
     <div class="module-header">
       <span class="module-tag">${esc(vars.moduleTag)}</span>
       <h1>${esc(vars.titleClean)}</h1>
@@ -293,16 +297,24 @@ export function renderSlidesViewerPage({ courseSlug, modnum, moduleLabel, course
 
 // moduleContent: { title, blocks } from the ikm-content blob store.
 // courseRegistry: { name, modules: [{num,label}], availableSet: Set, totalModules } from ikm-courses.
-// slideCount: number of slides for this module (0 if none) - drives whether
-// the "Shiko Prezantimin" entry card is shown.
-export function renderModulePage({ courseSlug, modnum, moduleContent, courseRegistry, slideCount }) {
+// slideCount: number of slides for this module (0 if none, or if slides
+// are hidden from this viewer) - drives whether the "Shiko Prezantimin"
+// entry card is shown. isAdmin: shows a "this is hidden from students"
+// banner when relevant, and buildNav includes hidden entries for them.
+export function renderModulePage({ courseSlug, modnum, moduleContent, courseRegistry, slideCount, isAdmin }) {
   const tClean = titleClean(moduleContent.title);
   const body = blocksToHtml(moduleContent.blocks);
   const tocItems = buildSectionToc(moduleContent.blocks);
   const toc = tocToHtml(tocItems);
-  const nav = buildNav(courseSlug, modnum, courseRegistry);
+  const nav = buildNav(courseSlug, modnum, courseRegistry, isAdmin);
   const moduleEntry = courseRegistry.modules.find((m) => m.num === modnum);
   const moduleTag = moduleEntry && moduleEntry.isReference ? 'Material Referues' : `Moduli ${modnum}`;
+
+  let adminHiddenBanner = '';
+  if (isAdmin && moduleEntry && (moduleEntry.hidden || moduleEntry.slidesHidden)) {
+    const what = moduleEntry.hidden ? 'Ky modul' : 'Prezantimi i këtij moduli';
+    adminHiddenBanner = `<div class="admin-banner">👁️‍🗨️ ${what} është i fshehur për studentët — vetëm ti (si admin) e sheh tani.</div>`;
+  }
 
   let slidesEntry = '';
   if (slideCount > 0) {
@@ -323,6 +335,7 @@ export function renderModulePage({ courseSlug, modnum, moduleContent, courseRegi
     toc,
     body,
     slidesEntry,
+    adminHiddenBanner,
   });
 }
 
@@ -332,8 +345,8 @@ export function renderModulePage({ courseSlug, modnum, moduleContent, courseRegi
 // under the reserved modnum "_description"), but no module tag, no TOC
 // rail (descriptions are typically short-ish), and the nav's "active"
 // state highlights "Rreth Kursit" instead of any module.
-export function renderCourseLandingPage({ courseSlug, courseRegistry, descriptionBlocks }) {
-  const nav = buildNav(courseSlug, null, courseRegistry);
+export function renderCourseLandingPage({ courseSlug, courseRegistry, descriptionBlocks, isAdmin }) {
+  const nav = buildNav(courseSlug, null, courseRegistry, isAdmin);
   const body = descriptionBlocks && descriptionBlocks.length
     ? blocksToHtml(descriptionBlocks)
     : '<p>Ky kurs nuk ka ende një përshkrim. Zgjidh një modul nga menyja majtas për të filluar.</p>';

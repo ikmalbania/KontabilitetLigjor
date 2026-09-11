@@ -1,5 +1,5 @@
 const { getStore, connectLambda } = require('@netlify/blobs');
-const { getSession, hasCourseAccess } = require('./_admin_auth');
+const { getSession, hasSlidesAccess } = require('./_admin_auth');
 
 exports.handler = async (event) => {
   connectLambda(event);
@@ -7,7 +7,8 @@ exports.handler = async (event) => {
 
   // Any signed-in user (student or admin) can view slides - this is the
   // same population that can already reach /course/* pages at all -
-  // but only for a course they're actually entitled to.
+  // but only for a course/module they're actually entitled to, and only
+  // if the module or its slides haven't been hidden by an admin.
   const session = getSession(event);
   if (!session) {
     return { statusCode: 401, body: 'Sesioni mungon ose ka skaduar.' };
@@ -18,8 +19,8 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: 'Mungon course, modnum ose file.' };
   }
 
-  if (!(await hasCourseAccess(session, course))) {
-    return { statusCode: 403, body: 'Nuk ke akses në këtë kurs.' };
+  if (!(await hasSlidesAccess(session, course, modnum))) {
+    return { statusCode: 403, body: 'Nuk ke akses në këto slides.' };
   }
 
   const store = getStore('ikm-slides');

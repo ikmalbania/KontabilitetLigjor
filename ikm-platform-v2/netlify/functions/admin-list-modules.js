@@ -20,6 +20,15 @@ exports.handler = async (event) => {
   // round-trip's worth of latency total). Metadata-only reads for
   // content also avoid downloading the full blocks array (which can be
   // several hundred KB for a large module) just to show a count.
+  //
+  // Self-healing fallback: content saved before this metadata approach
+  // existed (e.g. the original seed import) has no blockCount in its
+  // metadata. Rather than showing a false "0 blloqe" for it forever,
+  // fall back to a full read + compute the count directly, and
+  // opportunistically backfill the metadata so subsequent loads are
+  // fast again. This only ever runs for the handful of older entries
+  // that predate metadata - anything saved or seeded from here on
+  // already carries it.
   const courses = await Promise.all(
     Object.entries(registry).map(async ([slug, course]) => {
       const modules = await Promise.all(
@@ -31,6 +40,23 @@ exports.handler = async (event) => {
             slidesStore.list({ prefix: slidePrefix }),
           ]);
           const meta = (contentMeta && contentMeta.metadata) || null;
+          const hasTrustworthyMeta = meta && typeof meta.blockCount === 'number';
+
+          if (contentMeta && !hasTrustworthyMeta) {
+            const full = await contentStore.get(contentKey, { type: 'json' });
+            if (full) {
+              const blockCount = full.blocks.length;
+              const updatedAt = full.updatedAt || null;
+              // Backfill so the next dashboard load hits the fast path.
+              contentStore.setJSON(contentKey, full, { metadata: { blockCount, updatedAt } }).catch(() => {});
+              return {
+                num: m.num, label: m.label, hasContent: true, blockCount, updatedAt,
+                slideCount: slideList.blobs.length,
+                isReference: !!m.isReference, hidden: !!m.hidden, slidesHidden: !!m.slidesHidden,
+              };
+            }
+          }
+
           return {
             num: m.num,
             label: m.label,
@@ -38,6 +64,9 @@ exports.handler = async (event) => {
             blockCount: meta ? meta.blockCount || 0 : 0,
             updatedAt: meta ? meta.updatedAt || null : null,
             slideCount: slideList.blobs.length,
+            isReference: !!m.isReference,
+            hidden: !!m.hidden,
+            slidesHidden: !!m.slidesHidden,
           };
         })
       );
