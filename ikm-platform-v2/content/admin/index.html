@@ -104,6 +104,10 @@ async function load() {
           (m.hasContent ? (m.blockCount + ' blloqe') : 'Pa përmbajtje') + '</td>' +
         '<td>' + m.slideCount + ' Slides</td>' +
         '<td>' +
+          '<label style="display:block;font-size:12px;white-space:nowrap"><input type="checkbox" class="vis-toggle" data-kind="hidden" data-slug="' + esc(course.slug) + '" data-num="' + esc(m.num) + '"' + (m.hidden ? ' checked' : '') + '> Moduli i fshehur</label>' +
+          (m.slideCount > 0 ? '<label style="display:block;font-size:12px;white-space:nowrap"><input type="checkbox" class="vis-toggle" data-kind="slidesHidden" data-slug="' + esc(course.slug) + '" data-num="' + esc(m.num) + '"' + (m.slidesHidden ? ' checked' : '') + '> Prezantimi i fshehur</label>' : '') +
+        '</td>' +
+        '<td>' +
           '<a class="admin-action" href="/admin/edit/?course=' + encodeURIComponent(course.slug) + '&modnum=' + encodeURIComponent(m.num) + '">Edito tekstin</a>' +
           '<a class="admin-action" href="/admin/slides/?course=' + encodeURIComponent(course.slug) + '&modnum=' + encodeURIComponent(m.num) + '">Slides</a>' +
         '</td>' +
@@ -113,7 +117,7 @@ async function load() {
       '<h2>' + esc(course.name) + '</h2>' +
       '<div style="margin-bottom:8px"><a class="admin-action" href="/admin/edit/?course=' + encodeURIComponent(course.slug) + '&modnum=_description">Edito Përshkrimin e Kursit</a>' +
         ' <span style="color:#8A97A6;font-size:12px">(shfaqet para moduleve, kur studenti klikon te kursi)</span></div>' +
-      '<table class="admin-table"><thead><tr><th>Moduli</th><th>Titulli</th><th>Përmbajtja</th><th>Prezantimi</th><th></th></tr></thead>' +
+      '<table class="admin-table"><thead><tr><th>Moduli</th><th>Titulli</th><th>Përmbajtja</th><th>Prezantimi</th><th>Dukshmëria</th><th></th></tr></thead>' +
       '<tbody>' + rows + '</tbody></table>' +
       '<div style="margin-top:10px">' +
         '<button class="btn-ghost add-module-btn" data-slug="' + esc(course.slug) + '" style="color:var(--navy);border-color:var(--line);font-size:13px;padding:5px 12px">+ Shto Modul</button> ' +
@@ -148,6 +152,24 @@ async function load() {
       postJSON('/api/admin-add-module', { course: slug, num: key, label: label, isReference: true })
         .then(function () { return load(); })
         .catch(function (err) { statusEl.textContent = 'Gabim: ' + err.message; });
+    });
+  });
+
+  document.querySelectorAll('.vis-toggle').forEach(function (cb) {
+    cb.addEventListener('change', function () {
+      var slug = cb.getAttribute('data-slug');
+      var num = cb.getAttribute('data-num');
+      var kind = cb.getAttribute('data-kind'); // 'hidden' or 'slidesHidden'
+      var payload = { course: slug, num: num };
+      payload[kind] = cb.checked;
+      cb.disabled = true;
+      postJSON('/api/admin-set-module-flags', payload)
+        .then(function () { return load(); })
+        .catch(function (err) {
+          alert('Gabim: ' + err.message);
+          cb.checked = !cb.checked;
+          cb.disabled = false;
+        });
     });
   });
 }

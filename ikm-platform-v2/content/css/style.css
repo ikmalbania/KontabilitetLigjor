@@ -120,6 +120,16 @@ a:hover { text-decoration: underline; }
   font-weight: 600;
 }
 .module-nav .lock { font-size: 12px; opacity: 0.6; }
+.module-nav .hidden-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #8B1E1E;
+  background: #FBEAEA;
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 4px;
+}
 .nav-more {
   padding: 10px 14px;
   color: #8A97A6;

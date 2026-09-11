@@ -61,6 +61,7 @@ exports.handler = async (event) => {
     passwordHash: hashPassword(password),
     role: 'student',
     createdAt: new Date().toISOString(),
+    lastLoginAt: new Date().toISOString(), // signing up also logs them in
   };
   await store.setJSON(email, record);
 

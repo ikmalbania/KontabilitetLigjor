@@ -60,25 +60,41 @@ const MODULE_RE = /^\/course\/([a-z0-9-]+)\/modul-([a-z0-9-]+)\/?$/;
 const SLIDES_RE = /^\/course\/([a-z0-9-]+)\/modul-([a-z0-9-]+)\/slides\/?$/;
 const LANDING_RE = /^\/course\/([a-z0-9-]+)\/?$/;
 
-async function tryDynamicRender(pathname) {
+async function tryDynamicRender(url, session) {
+  const pathname = url.pathname;
+  const isAdmin = session.role === 'admin';
+
   let m = pathname.match(MODULE_RE);
   if (m) {
     const [, courseSlug, modnum] = m;
     const registry = await getRegistry(courseSlug);
     if (!registry) return null; // unknown course - fall through to static/404
+    const moduleEntry = registry.modules.find((x) => x.num === modnum);
+
+    // A hidden module must be actually blocked here, not just omitted
+    // from the nav - otherwise a direct link (or the original 10
+    // modules' static fallback file, which still exists on disk) would
+    // still expose it. This check happens before even looking at
+    // content, and never falls through to context.next().
+    if (moduleEntry && moduleEntry.hidden && !isAdmin) {
+      return Response.redirect(new URL(`/course/${courseSlug}/?forbidden=1`, url.origin), 302);
+    }
+
     const contentStore = getStore('ikm-content');
     const moduleContent = await contentStore.get(`${courseSlug}/modul-${modnum}`, { type: 'json' });
     if (!moduleContent) return null; // no dynamic content yet - fall through to static file
 
     const slidesStore = getStore('ikm-slides');
     const { blobs: slideBlobs } = await slidesStore.list({ prefix: `${courseSlug}/modul-${modnum}/` });
+    const slidesBlocked = moduleEntry && moduleEntry.slidesHidden && !isAdmin;
 
     const html = renderModulePage({
       courseSlug,
       modnum,
       moduleContent,
       courseRegistry: registry,
-      slideCount: slideBlobs.length,
+      slideCount: slidesBlocked ? 0 : slideBlobs.length,
+      isAdmin,
     });
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   }
@@ -88,8 +104,14 @@ async function tryDynamicRender(pathname) {
     const [, courseSlug, modnum] = m;
     const registry = await getRegistry(courseSlug);
     if (!registry) return null;
-    const mod = registry.modules.find((x) => x.num === modnum);
-    const moduleLabel = mod ? mod.label : `Moduli ${modnum}`;
+    const moduleEntry = registry.modules.find((x) => x.num === modnum);
+    // Same blocking rule as the module page itself: a hidden module's
+    // slides aren't reachable either, and slidesHidden blocks just the
+    // presentation even when the module text stays visible.
+    if (moduleEntry && !isAdmin && (moduleEntry.hidden || moduleEntry.slidesHidden)) {
+      return Response.redirect(new URL(`/course/${courseSlug}/?forbidden=1`, url.origin), 302);
+    }
+    const moduleLabel = moduleEntry ? moduleEntry.label : `Moduli ${modnum}`;
     const html = renderSlidesViewerPage({ courseSlug, modnum, moduleLabel, courseName: registry.name });
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   }
@@ -105,6 +127,7 @@ async function tryDynamicRender(pathname) {
       courseSlug,
       courseRegistry: registry,
       descriptionBlocks: descContent ? descContent.blocks : [],
+      isAdmin,
     });
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   }
@@ -176,7 +199,7 @@ export default async (request, context) => {
       }
     }
     try {
-      const rendered = await tryDynamicRender(url.pathname);
+      const rendered = await tryDynamicRender(url, session);
       if (rendered) return rendered;
     } catch (e) {
       // Blobs read failed for some reason - don't take the site down,

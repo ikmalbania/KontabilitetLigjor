@@ -91,3 +91,23 @@ module.exports.hasCourseAccess = async function hasCourseAccess(session, courseS
   if (!record || !Array.isArray(record.courses)) return true;
   return record.courses.includes(courseSlug);
 };
+
+// Whether this session may view a specific module's slides - combines
+// course-level access with the module's own hidden/slidesHidden flags
+// (set via admin-set-module-flags.js). Used by list-slides.js and
+// slide-image.js, which are reached via /api/* and so aren't covered
+// by the edge function's own module-page blocking - each needs this
+// check independently, same reasoning as hasCourseAccess existing here
+// rather than only in the edge function.
+module.exports.hasSlidesAccess = async function hasSlidesAccess(session, courseSlug, modnum) {
+  if (!session) return false;
+  if (session.role === 'admin') return true;
+  if (!(await module.exports.hasCourseAccess(session, courseSlug))) return false;
+  const { getStore } = require('@netlify/blobs');
+  const coursesStore = getStore('ikm-courses');
+  const registry = await coursesStore.get('registry', { type: 'json' });
+  const course = registry && registry[courseSlug];
+  const moduleEntry = course && course.modules.find((m) => m.num === modnum);
+  if (moduleEntry && (moduleEntry.hidden || moduleEntry.slidesHidden)) return false;
+  return true;
+};
