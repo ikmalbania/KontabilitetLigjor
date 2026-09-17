@@ -1,0 +1,72 @@
+const { getStore, connectLambda } = require('@netlify/blobs');
+const { verifyPassword } = require('./_password');
+const { createSessionToken, sessionCookieHeader, displayCookieHeader, roleCookieHeader } = require('./_session');
+
+exports.handler = async (event) => {
+  connectLambda(event);
+
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, body: 'Method not allowed' };
+  }
+
+  let body;
+  try {
+    body = JSON.parse(event.body || '{}');
+  } catch (e) {
+    return json(400, { error: 'Kërkesë e pavlefshme.' });
+  }
+
+  const email = String(body.email || '').trim().toLowerCase();
+  const password = String(body.password || '');
+
+  if (!email || !password) {
+    return json(400, { error: 'Email dhe fjalëkalimi kërkohen.' });
+  }
+
+  let store;
+  try {
+    store = getStore('ikm-users');
+  } catch (e) {
+    return json(500, { error: 'Gabim ruajtjeje (Blobs). ' + e.message });
+  }
+
+  const record = await store.get(email, { type: 'json' });
+
+  // Deliberately generic error for both "no such user" and "wrong
+  // password" — being specific would let someone probe which emails
+  // are registered.
+  const genericError = 'Email ose fjalëkalim i pasaktë.';
+  if (!record || !verifyPassword(password, record.passwordHash)) {
+    return json(401, { error: genericError });
+  }
+
+  const token = createSessionToken(email, record.role);
+
+  // Record last login. Must be awaited, not fire-and-forget - Netlify
+  // Functions can freeze the execution environment as soon as the
+  // response is sent, which can kill an in-flight write before it
+  // actually completes. That's exactly what happened here originally:
+  // the write started but wasn't guaranteed to finish, so it would
+  // unpredictably fail to persist (often on someone's very first real
+  // login, since that's the one most likely to get checked). Blobs
+  // writes are fast enough that awaiting this costs nothing noticeable.
+  record.lastLoginAt = new Date().toISOString();
+  await store.setJSON(email, record);
+
+  return {
+    statusCode: 200,
+    multiValueHeaders: {
+      'Set-Cookie': [sessionCookieHeader(token), displayCookieHeader(email), roleCookieHeader(record.role)],
+    },
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ok: true }),
+  };
+};
+
+function json(statusCode, obj) {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(obj),
+  };
+}
